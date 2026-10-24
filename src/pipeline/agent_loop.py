@@ -77,6 +77,10 @@ class AgentLoop:
     # ---- decide ------------------------------------------------------------------------
     def decide(self, as_of: pd.Timestamp, state: dict, vlog: dict, drift: dict) -> tuple[bool, str]:
         if not vlog.get("live"):
+            # A preview model fitted for this same as_of is reused. Refitting would mint a new preview version
+            # and re-issue forecasts for the same origin, duplicating records on a second run.
+            if vlog.get("preview") and state.get("last_trained_as_of") == C.period_label(as_of):
+                return False, "preview model already fitted for this as_of"
             return True, "no live model"
         last = state.get("last_trained_as_of")
         if last is None or C.periods_between(C.parse_period_label(last), as_of) >= C.RETRAIN_EVERY_PERIODS:

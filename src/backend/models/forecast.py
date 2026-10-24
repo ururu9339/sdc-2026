@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 
 
 class ForecastRecord(BaseModel):
+    """One forecast as stored. p50, p10, p90 are log changes in the smoothed share over the horizon;
+    growth = exp(p50) - 1 is derived by clients. Values are never edited after logging."""
     forecast_id: str
     model_version: Optional[str] = None
     as_of: str
@@ -65,6 +67,9 @@ class LiveForecastList(BaseModel):
     horizon_periods: Optional[int] = None
     disclaimer: Optional[str] = None
     count: int
+    total: int = 0
+    offset: int = 0
+    limit: int = 100
     forecasts: list[ForecastRecord]
 
 
@@ -82,6 +87,9 @@ class PreviewForecastList(BaseModel):
     horizon_periods: Optional[int] = None
     disclaimer: Optional[str] = None
     count: int
+    total: int = 0
+    offset: int = 0
+    limit: int = 100
     forecasts: list[ForecastRecord]
 
 
@@ -93,6 +101,10 @@ class NoLiveModel(BaseModel):
     reason: str
     gate: Optional[GateSummary] = None
     disclaimer: Optional[str] = None
+    count: int = 0
+    total: int = 0
+    offset: int = 0
+    limit: int = 100
     forecasts: list[ForecastRecord] = Field(default_factory=list)
 
 

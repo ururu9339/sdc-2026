@@ -1,0 +1,68 @@
+{
+  "generated_at": "2026-10-24T18:20:19.728455+00:00",
+  "as_of": "2023-09-11",
+  "feed": "preview",
+  "model_version": "preview:v18",
+  "validated": false,
+  "gate_profile": "demo",
+  "gate": {
+    "passed": false,
+    "reason": "failed: beats_baseline, fold_win_rate"
+  },
+  "row_counts": {
+    "forecasts": 123,
+    "graph_edges": 241,
+    "observations": 17937,
+    "raw_rows": {
+      "jobstreet_my": 4590
+    }
+  },
+  "outcomes": {
+    "feed": "preview",
+    "validated": false,
+    "matured": 1722,
+    "live_mae": 0.03745430625495533,
+    "persistence_mae": 0.04825328024651534,
+    "interval_coverage": 0.7166085946573751
+  },
+  "observation_sources": [
+    "job_postings",
+    "jobstreet_my",
+    "market_signal"
+  ],
+  "files": [
+    {
+      "path": "model_report.json",
+      "bytes": 6711,
+      "sha256": "362a2b47a8266862648ed4d9e5e59843e4b6f591996e1f4b4e3af618793e41e8"
+    },
+    {
+      "path": "models/version_log.json",
+      "bytes": 15632,
+      "sha256": "87955e4a16baa9cce371ce2796ccec4d0c382665d950967c472d6118676933c7"
+    },
+    {
+      "path": "preview_log.jsonl",
+      "bytes": 170850,
+      "sha256": "18d547dfa2d28a524710996b0187d398da2b7d66fd3d8973b528ce5a989cf76b"
+    },
+    {
+      "path": "processed/job_skill_graph.csv",
+      "bytes": 15324,
+      "sha256": "e8cf2738e2b3f0409157c21a0f52fad13a94342524dc0a90552f8fe5ad298855"
+    },
+    {
+      "path": "processed/observations.csv",
+      "bytes": 1270269,
+      "sha256": "32709af97e3e65de080287c8a5fc576e7cd9fef10afa4f2c83a8b41c2a85c709"
+    },
+    {
+      "path": "raw/jobstreet_my.csv",
+      "bytes": 317284,
+      "sha256": "509624cec2d8334a7249368bfb2ff14d1c72b5d863ab76650763addc75d332ba"
+    }
+  ],
+  "total_bytes": 1798025,
+  "max_total_bytes": 5242880,
+  "note": "snapshot for serving: the files the API reads, written by src.pipeline.refresh from the local data/ folder. Not a full copy of the data and not a re-computation; regenerate it to refresh."
+}

@@ -198,6 +198,99 @@ def select_forecasts(kind: str | None = None, direction: str | None = None, stat
     return [api_record(r, feed) for r in out[:limit]]
 
 
+CONFIDENCE_RANK = {"low": 0, "moderate": 1, "high": 2}
+SORTS = ("growth", "-growth", "name", "-name")
+DEFAULT_SORT = "-growth"
+
+
+def _sort_key(sort: str):
+    """growth: smallest growth first; -growth: largest first (default). Records with no forecast number always
+    come last. name: A to Z; -name: Z to A. Ties are broken by entity id so pages are stable."""
+    if sort in ("growth", "-growth"):
+        desc = sort == "-growth"
+
+        def key(r):
+            p50 = r.get("p50")
+            if p50 is None:
+                return (1, 0.0, r["entity_id"])
+            return (0, -p50 if desc else p50, r["entity_id"])
+        return key
+    desc = sort == "-name"
+
+    def key_name(r):
+        name = (T.entity_name(r["entity_id"]) or r["entity_id"]).lower()
+        return (0, name, r["entity_id"]) if not desc else (0, _Reversed(name), _Reversed(r["entity_id"]))
+    return key_name
+
+
+class _Reversed:
+    """Inverts ordering of a string for descending sorts on names."""
+    __slots__ = ("v",)
+
+    def __init__(self, v: str):
+        self.v = v
+
+    def __lt__(self, other):
+        return self.v > other.v
+
+    def __eq__(self, other):
+        return self.v == other.v
+
+
+def query_forecasts(kind: str | None = None, direction: str | None = None, status: str | None = None,
+                    min_confidence: str | None = None, q: str | None = None, sort: str = DEFAULT_SORT,
+                    offset: int = 0, limit: int = 100) -> tuple[str, int, list[dict]]:
+    """Filter, sort and page the current feed's records. Returns (feed, total matching, page as served)."""
+    if sort not in SORTS:
+        raise ValueError(f"sort must be one of {SORTS}")
+    feed, recs = current_records()
+    needle = (q or "").strip().lower()
+    rows = []
+    for r in recs:
+        if kind and r.get("kind") != kind:
+            continue
+        if direction and r.get("direction") != direction:
+            continue
+        if status and r.get("status") != status:
+            continue
+        if min_confidence:
+            rank = CONFIDENCE_RANK.get(r.get("confidence"))
+            if rank is None or rank < CONFIDENCE_RANK[min_confidence]:
+                continue
+        if needle and needle not in r["entity_id"].lower() \
+                and needle not in (T.entity_name(r["entity_id"]) or "").lower():
+            continue
+        rows.append(r)
+    rows.sort(key=_sort_key(sort))
+    page = rows[offset: offset + limit]
+    return feed, len(rows), [api_record(r, feed) for r in page]
+
+
+def health_facts() -> dict:
+    """Facts for GET /health. Reads only; any missing file gives None or an empty list, never an exception."""
+    vlog = _version_log()
+    live = vlog.get("live")
+    feed, recs = current_records()
+    last = latest_attempt()
+    gate = _gate_summary(last) or {}
+    obs_sources: list[str] = []
+    try:
+        obs = _observations()
+        obs_sources = sorted(str(x) for x in obs["source_id"].dropna().unique()) if not obs.empty else []
+    except Exception:  # health must answer even when the observation file is missing or unreadable
+        obs_sources = []
+    return {
+        "live_model": live,
+        "feed": feed,
+        "forecast_as_of": recs[0]["as_of"] if recs else None,
+        "n_forecasts": len(recs),
+        "gate_profile": C.ACTIVE_GATE_PROFILE,
+        "last_gate": {"passed": gate.get("passed"), "reason": gate.get("reason") or (None if last else
+                                                                                      NO_ATTEMPT_REASON)},
+        "sources_with_data": obs_sources,
+    }
+
+
 def forecast_envelope() -> dict:
     """Shared header for a live forecast listing: which model, which gate, which horizon and origin."""
     vlog = _version_log()
