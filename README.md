@@ -229,8 +229,19 @@ curl -X POST https://api.runpod.ai/v2/$RUNPOD_ENDPOINT_ID/runsync \
 
 ## Challenges & Learnings
 
-- Development exposed a serious problem in building such a system from the scratch that involves several sources to scan. Moreover, lack of current datasets that have a data from specified range of date
-- Team acquired fundamental knowledge of machine learning concepts, especially embedding systems and forecasting models. Team mastered tech stack such as. Moreover, team gained a wide representation of agentic development involving Replit, Claude Code and other tools. 
+### Challenges
+
+- **Building from scratch across many sources.** Job postings come from several sites, each with its own format, and skills are written inconsistently ("Python", "python3", "pengaturcaraan python") in both English and Malay. We had to design our own taxonomy of stable skill and job IDs, aligned with MASCO. We then built an embedding pipeline that maps every mention to one of those IDs, so demand isn't split across spellings.
+- **No recent, date-ranged datasets.** We couldn't find public Malaysian job-posting data covering the recent months we needed for forecasting. We worked with synthetic postings to build and test the pipeline end to end, and designed it so real postings can be loaded later without code changes.
+- **Choosing thresholds without guessing.** The default similarity thresholds rejected almost every correct match. We hand-built a gold set of 305 mentions, including negatives with no correct ID, and picked the thresholds from measured precision.
+- **Knowing when to abstain.** Unknown job titles always have *some* nearest neighbour. We added cut-offs taken from the evaluation, so the system answers "insufficient data" instead of inventing a profile.
+
+### Learnings
+
+- **Machine learning fundamentals:** how embedding models represent meaning, how to evaluate them against baselines (exact match, fuzzy match, a smaller model), and how a forecasting model such as LightGBM fits into the pipeline without being mixed up with similarity scores.
+- **Tech stack:** Python, FastAPI and SQLModel for the backend; PostgreSQL with pgvector for vector search; Ollama to serve Qwen3-Embedding-4B; Tesseract OCR for CV uploads; rapidfuzz for baselines.
+- **Agentic development:** we built with Replit and Claude Code. AI agents helped us plan, write, test and debug code quickly, while we stayed responsible for reviewing decisions and checking results against real evaluation numbers.
+- **Data quality matters as much as the model.** Most remaining errors came from gaps in our taxonomy, not from the embedding model.
 
 ## Future Improvements
 
@@ -248,9 +259,9 @@ curl -X POST https://api.runpod.ai/v2/$RUNPOD_ENDPOINT_ID/runsync \
 | Name        | Role                | GitHub                                   |
 | ----------- | ------------------- | ---------------------------------------- |
 | Nurali Zhan | Team Lead / Backend | [@username](https://github.com/username) |
-| Member Name | Frontend            | [@username](https://github.com/username) |
-| Askaruly Ali| AI / RunPod         | [@invalid-RJK](https://github.com/username) |
-| Member Name | AI / RunPod         | [@username](https://github.com/username) |
+| Shahzod Bakiev | Frontend / Backend | [@username](https://github.com/username) |
+| Askaruly Ali | AI engine         | [@invalid-RJK](https://github.com/username) |
+| Amirkhan Dossymov | AI / RunPod   | [@username](https://github.com/username) |
 
 ---
 
