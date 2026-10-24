@@ -17,7 +17,7 @@ GOLD_PAIRS = HERE / "gold_job_pairs.csv"
 TOP_K = 5
 HIGH_PRECISION = 0.95
 BAND_PRECISION = 0.50
-COLD_START_PRECISION = 0.90 
+COLD_START_PRECISION = 0.90
 
 def gold_sha():
     h = hashlib.sha256()

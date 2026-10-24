@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from embeddings import db, embedder, versioning
 
-# From the active version log entry when it matches these settings (evaluate.py --record), else hand-set fallbacks.
+
 _T = versioning.active_thresholds()
 HIGH = _T.get("high") or 0.60
 LOW = _T.get("low") or 0.45
@@ -14,7 +14,7 @@ TOP_K = 5
 class Match:
     mention: str
     entity_type: str
-    status: str                      
+    status: str
     entity_id: str | None
     score: float
     candidates: list = field(default_factory=list)
@@ -25,7 +25,6 @@ def classify(score):
 
 
 def normalize(conn, mentions, entity_type):
-    """Embed mentions as queries and look up the top-k entities of the same type."""
     tag = db.check_version(conn)
     mentions = list(mentions)
     vecs = embedder.embed_queries(mentions)
@@ -44,11 +43,9 @@ def normalize(conn, mentions, entity_type):
 
 
 def _month(s):
-    return f"{s.strip()[:7]}-01" 
+    return f"{s.strip()[:7]}-01"
 
 def map_postings(conn, records):
-    """records: iterable of dicts with posting_id, month, mention, entity_type.
-    Writes high/low matches to posting_entity and the rest to unmapped_mention."""
     records = [r for r in records if r["mention"].strip()]
     tag = embedder.version_tag()
     counts = {"high": 0, "low": 0, "unmapped": 0}

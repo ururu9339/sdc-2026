@@ -1,4 +1,3 @@
-"""Time alignment, loaders and the validator on tiny hand-written frames (fixtures, not datasets)."""
 import pandas as pd
 
 from src.sources import loaders
@@ -25,7 +24,6 @@ def _rows(entity, values, start, source, kind="skill", granularity_freq="W-MON")
 
 
 def _obs(weeks=60):
-    """Target 'p' weekly from 2023-01-02 (a Monday) plus monthly 'm' from Jan 2023 to Mar 2024."""
     target = _rows("a", [0.01 + 0.0005 * i for i in range(weeks)], "2023-01-02", "p")
     months = pd.date_range("2023-01-01", periods=15, freq="MS")
     m = pd.DataFrame({"entity_id": "a", "kind": "skill", "period": months, "source_id": "m",
@@ -35,9 +33,9 @@ def _obs(weeks=60):
 
 def test_monthly_figure_is_first_usable_in_the_week_after_month_end():
     starts = pd.Series(pd.to_datetime(["2024-01-01", "2024-02-01"]))
-    # Jan is complete at 2024-02-01 (Thursday): the origin week 2024-01-29 ends 2024-02-05, the first to see it
+
     assert first_visible_period(starts, "monthly", 0).tolist() == [pd.Timestamp("2024-01-29"), pd.Timestamp("2024-02-26")]
-    # with a 7-day release lag Jan is known at 2024-02-08, so the first origin is the week of 2024-02-05
+
     assert first_visible_period(starts.iloc[:1], "monthly", 7).tolist() == [pd.Timestamp("2024-02-05")]
 
 
@@ -55,11 +53,11 @@ def test_shift_to_publication_keeps_native_period():
 
 def test_not_yet_visible_monthly_value_changes_no_feature():
     obs = _obs()
-    as_of = "2024-01-22"  # the Jan 2024 figure is only visible from the week of 2024-01-29
+    as_of = "2024-01-22"
     full = build_feature_table(obs, WEEKLY_REG, as_of=as_of)
     jan = (obs["source_id"] == "m") & (obs["period"] == "2024-01-01")
     pd.testing.assert_frame_equal(full, build_feature_table(obs[~jan], WEEKLY_REG, as_of=as_of))
-    # sanity: once the figure is visible, removing it does change features (the check is not vacuous)
+
     later = build_feature_table(obs, WEEKLY_REG, as_of="2024-02-05")
     assert not later.equals(build_feature_table(obs[~jan], WEEKLY_REG, as_of="2024-02-05"))
 
@@ -68,7 +66,7 @@ def test_release_lag_delays_the_figure():
     obs = _obs()
     no_lag = build_feature_table(obs, WEEKLY_REG, as_of="2024-01-29").set_index("period")
     lagged = build_feature_table(obs, LAGGED_REG, as_of="2024-01-29").set_index("period")
-    # with a 30-day lag the Jan figure is visible only from 2024-02-26; at 2024-01-29 it is not yet known
+
     assert "m__z" in no_lag.columns and "m__z" in lagged.columns
     assert no_lag.loc["2024-01-29", "m__z"] != lagged.loc["2024-01-29", "m__z"]
 

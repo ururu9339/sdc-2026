@@ -1,4 +1,3 @@
-"""JobStreet adapter with tiny hand-written rows (fixtures, not datasets)."""
 import pandas as pd
 
 from src.sources import jobstreet as js
@@ -13,7 +12,7 @@ def _cfg(**overrides):
     return {**source_cfg("jobstreet_my"), **overrides}
 
 
-ROWS = [  # weeks (Monday start): Jan 1 (2 rows), Jan 15 (2 rows), Feb 5 (1 row); Jan 8 is empty
+ROWS = [
     (1, "Python Developer", "python and sql", "Developer", "2024-01-03T00:00:00Z"),
     (2, "Accountant", "excel, gst", "Accountant", "2024-01-04T00:00:00Z"),
     (3, "Data Analyst", "power bi, sql", "Analyst", "2024-01-17T00:00:00Z"),
@@ -36,5 +35,5 @@ def test_low_volume_period_dropped_and_gaps_not_zero_filled():
     assert sorted(obs["period"].unique()) == [pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-15")]
     assert [d["period"] for d in meta["dropped_periods"]] == ["2024-02-05"]
     assert meta["dropped_periods"][0]["total_postings"] == 1
-    assert meta["gap_periods"] == ["2024-01-08"]  # the empty week between the kept ones; no rows, no zero-fill
+    assert meta["gap_periods"] == ["2024-01-08"]
     assert obs[obs["period"] == pd.Timestamp("2024-01-08")].empty

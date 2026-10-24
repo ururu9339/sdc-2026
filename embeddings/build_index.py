@@ -11,7 +11,7 @@ def build(conn, rebuild=False):
         raise SystemExit(f"Index was built with {stored!r}, current settings are {tag!r}. Re-run with --rebuild.")
     active = versioning.active()
     if stored and stored != tag and (not active or active["version_tag"] != tag):
-        # Step 10 gate: only a version that passed evaluate.py --record may replace the live index.
+
         raise SystemExit(f"{tag!r} is not the active version in {versioning.LOG}. "
                          "Run python -m embeddings.eval.evaluate --record first.")
     if not active or active["version_tag"] != tag:

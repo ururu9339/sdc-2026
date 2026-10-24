@@ -1,5 +1,3 @@
-"""Forecast, history, explanation, snapshot, model and source routes. Every forecast-bearing response carries
-the feed and the validated flag; while no model has passed the gate, the preview banner is always present."""
 from __future__ import annotations
 
 from typing import Literal, Optional, Union
@@ -89,16 +87,19 @@ def get_forecast(entity_id: str):
         return EntityForecast(entity_id=entity_id, kind=kind, status="no_live_model", feed="none", validated=False,
                               reason=store.no_live_reason(), disclaimer=disclaimer)
     validated = feed == "live"
-    banner = None if validated else store.PREVIEW_BANNER.format(reason=(rec or {}).get("preview_reason")
-                                                                or store.no_live_reason())
+    win = store.feed_window()
+    banner = store.banner_for(feed, win["forecast_as_of"], win["forecast_target_period"],
+                              (rec or {}).get("preview_reason"))
     if rec is None:
         return EntityForecast(entity_id=entity_id, kind=kind, status="insufficient_data", feed=feed,
                               validated=validated, banner=banner, disclaimer=disclaimer,
                               reason="no forecast has been logged for this entity yet")
     status = rec["status"] if validated else ("preview" if rec["status"] == "ok" else "insufficient_data")
+    served = store.api_record(rec, feed)
     return EntityForecast(entity_id=entity_id, kind=kind, status=status, feed=feed, validated=validated,
-                          banner=banner, reason=rec.get("reason"), forecast=store.api_record(rec, feed),
-                          disclaimer=disclaimer)
+                          banner=banner, reason=rec.get("reason"), forecast=served, disclaimer=disclaimer,
+                          data_age_days=served["data_age_days"], stale=served["stale"],
+                          forecast_window=served["forecast_window"])
 
 
 @router.get(

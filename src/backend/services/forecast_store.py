@@ -1,12 +1,7 @@
-"""Read-only access to what the pipeline has written: the forecast log, the version log, observations,
-the job-skill graph and the registry. No forecast is computed here and no language model is used;
-explanations are template strings filled only from stored fields.
-
-Paths are read from src.training.config at call time so tests can point them at fixtures.
-"""
 from __future__ import annotations
 
 import math
+from datetime import date
 from typing import Any
 
 import numpy as np
@@ -19,12 +14,11 @@ from src.training import config as C
 from src.training.audit import signal_audit, source_coverage
 
 GRAPH_FILENAME = "job_skill_graph.csv"
-PREVIEW_BANNER = ("PREVIEW: unvalidated candidate forecasts; the model did not pass the validation gate ({reason}). "
-                  "Not for decisions.")
+PREVIEW_PREFIX = "PREVIEW: unvalidated candidate forecasts; the model did not pass the validation gate"
 SNAPSHOT_BANNER = ("DESCRIPTIVE SNAPSHOT, NOT A FORECAST: average share of postings in the first and last contiguous "
                    "blocks of periods of the source. Past counts only; no trend is inferred.")
 NO_ATTEMPT_REASON = "no retraining attempt has been recorded yet"
-PERIOD_WORD = {"W": "weeks", "M": "months", "D": "days"}  # the model grid is config.PERIOD_FREQ (weekly)
+PERIOD_WORD = {"W": "weeks", "M": "months", "D": "days"}
 DIRECTION_PHRASE = {
     "emerging": "emerging (share of postings rising)",
     "declining": "declining (share of postings falling)",
@@ -32,9 +26,7 @@ DIRECTION_PHRASE = {
 }
 
 
-# ---- helpers ----------------------------------------------------------------------------
 def _clean(x: Any) -> Any:
-    """Recursively convert numpy/pandas values to JSON-safe Python values (NaN and inf become None)."""
     if isinstance(x, dict):
         return {k: _clean(v) for k, v in x.items()}
     if isinstance(x, (list, tuple)):
@@ -48,6 +40,49 @@ def _clean(x: Any) -> Any:
     if x is pd.NaT:
         return None
     return x
+
+
+def staleness(as_of: str | None, target_period: str | None = None) -> dict:
+    if not as_of:
+        return {"data_age_days": None, "stale": None, "forecast_window": None}
+    age = (C.utc_today() - date.fromisoformat(str(as_of)[:10])).days
+    window = f"made as of {as_of}" + (f" for {target_period}" if target_period else "")
+    return {"data_age_days": age, "stale": age > C.STALE_DAYS, "forecast_window": window}
+
+
+def preview_banner(reason: str, as_of: str | None = None, target_period: str | None = None) -> str:
+    s = staleness(as_of, target_period)
+    parts = [f"{PREVIEW_PREFIX} ({reason})."]
+    if as_of:
+        parts.append(f"Forecast made as of {as_of}" + (f" for {target_period}." if target_period else "."))
+    if s["stale"]:
+        parts.append(f"Data is {s['data_age_days']} days old.")
+    parts.append("Not for decisions.")
+    return " ".join(parts)
+
+
+def live_banner(as_of: str | None, target_period: str | None = None) -> str | None:
+    s = staleness(as_of, target_period)
+    if not s["stale"]:
+        return None
+    return (f"STALE: validated forecast made as of {as_of}" + (f" for {target_period}" if target_period else "")
+            + f". Data is {s['data_age_days']} days old, so the outlook may not describe current postings.")
+
+
+def banner_for(feed: str, as_of: str | None = None, target_period: str | None = None,
+               reason: str | None = None) -> str | None:
+    if feed == "preview":
+        return preview_banner(reason or no_live_reason(), as_of, target_period)
+    if feed == "live":
+        return live_banner(as_of, target_period)
+    return None
+
+
+def feed_window() -> dict:
+    feed, recs = current_records()
+    first = recs[0] if recs else {}
+    return {"forecast_as_of": first.get("as_of"), "forecast_target_period": first.get("target_period"),
+            **staleness(first.get("as_of"), first.get("target_period"))}
 
 
 def _version_log() -> dict:
@@ -103,7 +138,6 @@ def no_live_reason() -> str:
     return (last.get("gate") or {}).get("reason") or "gate not passed"
 
 
-# ---- forecasts ----------------------------------------------------------------------------
 def live_version() -> str | None:
     return _version_log().get("live")
 
@@ -113,25 +147,22 @@ def _forecast_records() -> list[dict]:
 
 
 def latest_forecasts() -> list[dict]:
-    """Records of the newest as_of. Empty when no model is live (forecasts are only served from a live model)."""
     if live_version() is None:
         return []
     recs = _forecast_records()
     if not recs:
         return []
-    newest = max(r["as_of"] for r in recs)  # ISO labels sort chronologically
+    newest = max(r["as_of"] for r in recs)
     return [r for r in recs if r["as_of"] == newest]
 
 
 def forecast_for(entity_id: str) -> dict | None:
-    """Newest logged LIVE record for the entity, or None (also None when no model is live)."""
     if live_version() is None:
         return None
     mine = [r for r in _forecast_records() if r["entity_id"] == entity_id]
     return max(mine, key=lambda r: r["as_of"]) if mine else None
 
 
-# ---- preview feed (unvalidated; served only while no live model exists) --------------------
 def _preview_records() -> list[dict]:
     if not C.PREVIEW_ENABLED:
         return []
@@ -139,7 +170,6 @@ def _preview_records() -> list[dict]:
 
 
 def serving_feed() -> str:
-    """'live' when a validated model is live; 'preview' when only unvalidated preview forecasts exist; else 'none'."""
     if live_version() is not None:
         return "live"
     return "preview" if _preview_records() else "none"
@@ -159,7 +189,6 @@ def preview_for(entity_id: str) -> dict | None:
 
 
 def record_for(entity_id: str) -> tuple[str, dict | None]:
-    """(feed, newest record for the entity in that feed). Feed 'none' gives no record."""
     feed = serving_feed()
     if feed == "live":
         return feed, forecast_for(entity_id)
@@ -169,8 +198,8 @@ def record_for(entity_id: str) -> tuple[str, dict | None]:
 
 
 def api_record(rec: dict, feed: str) -> dict:
-    """Record as served: adds feed and validated. Stored logs are not changed."""
-    return _clean({**rec, "feed": feed, "validated": feed == "live"})
+    return _clean({**rec, "feed": feed, "validated": feed == "live",
+                   **staleness(rec.get("as_of"), rec.get("target_period"))})
 
 
 def current_records() -> tuple[str, list[dict]]:
@@ -204,8 +233,6 @@ DEFAULT_SORT = "-growth"
 
 
 def _sort_key(sort: str):
-    """growth: smallest growth first; -growth: largest first (default). Records with no forecast number always
-    come last. name: A to Z; -name: Z to A. Ties are broken by entity id so pages are stable."""
     if sort in ("growth", "-growth"):
         desc = sort == "-growth"
 
@@ -224,7 +251,6 @@ def _sort_key(sort: str):
 
 
 class _Reversed:
-    """Inverts ordering of a string for descending sorts on names."""
     __slots__ = ("v",)
 
     def __init__(self, v: str):
@@ -240,7 +266,6 @@ class _Reversed:
 def query_forecasts(kind: str | None = None, direction: str | None = None, status: str | None = None,
                     min_confidence: str | None = None, q: str | None = None, sort: str = DEFAULT_SORT,
                     offset: int = 0, limit: int = 100) -> tuple[str, int, list[dict]]:
-    """Filter, sort and page the current feed's records. Returns (feed, total matching, page as served)."""
     if sort not in SORTS:
         raise ValueError(f"sort must be one of {SORTS}")
     feed, recs = current_records()
@@ -267,7 +292,6 @@ def query_forecasts(kind: str | None = None, direction: str | None = None, statu
 
 
 def health_facts() -> dict:
-    """Facts for GET /health. Reads only; any missing file gives None or an empty list, never an exception."""
     vlog = _version_log()
     live = vlog.get("live")
     feed, recs = current_records()
@@ -277,12 +301,15 @@ def health_facts() -> dict:
     try:
         obs = _observations()
         obs_sources = sorted(str(x) for x in obs["source_id"].dropna().unique()) if not obs.empty else []
-    except Exception:  # health must answer even when the observation file is missing or unreadable
+    except Exception:
         obs_sources = []
+    window = feed_window()
     return {
         "live_model": live,
         "feed": feed,
         "forecast_as_of": recs[0]["as_of"] if recs else None,
+        "forecast_age_days": window["data_age_days"],
+        "stale": window["stale"],
         "n_forecasts": len(recs),
         "gate_profile": C.ACTIVE_GATE_PROFILE,
         "last_gate": {"passed": gate.get("passed"), "reason": gate.get("reason") or (None if last else
@@ -292,7 +319,6 @@ def health_facts() -> dict:
 
 
 def forecast_envelope() -> dict:
-    """Shared header for a live forecast listing: which model, which gate, which horizon and origin."""
     vlog = _version_log()
     live = vlog.get("live")
     meta = load_json(C.MODELS_DIR / f"forecaster_{live}" / "meta.json", {}) if live else {}
@@ -305,17 +331,19 @@ def forecast_envelope() -> dict:
         "target_period": first.get("target_period"),
         "horizon_periods": first.get("horizon_periods", meta.get("horizon_periods")),
         "disclaimer": first.get("disclaimer") or _registry().get("disclaimer"),
+        "banner": live_banner(first.get("as_of"), first.get("target_period")),
+        **staleness(first.get("as_of"), first.get("target_period")),
     })
 
 
 def preview_envelope() -> dict:
-    """Header for the preview listing: unvalidated, with the gate's reason and the banner text."""
     recs = latest_preview_forecasts()
     first = recs[0] if recs else {}
     reason = first.get("preview_reason") or no_live_reason()
     return _clean({
         "reason": reason,
-        "banner": PREVIEW_BANNER.format(reason=reason),
+        "banner": preview_banner(reason, first.get("as_of"), first.get("target_period")),
+        **staleness(first.get("as_of"), first.get("target_period")),
         "model_version": first.get("model_version"),
         "gate_profile": first.get("gate_profile"),
         "as_of": first.get("as_of"),
@@ -333,7 +361,6 @@ def no_live_envelope() -> dict:
     })
 
 
-# ---- entities -----------------------------------------------------------------------------
 def entity_known(entity_id: str) -> bool:
     if entity_id == GLOBAL_ID:
         return False
@@ -348,7 +375,6 @@ def entity_kind(entity_id: str) -> str | None:
 
 
 def history(entity_id: str, n_periods: int = 52) -> dict | None:
-    """Target-source share series for the entity (native periods, latest n), with the entity's audit row."""
     obs = _observations()
     rows = obs[obs["entity_id"] == entity_id]
     if rows.empty:
@@ -368,10 +394,7 @@ def history(entity_id: str, n_periods: int = 52) -> dict | None:
     })
 
 
-# ---- graph ----------------------------------------------------------------------------------
 def graph_neighbours(entity_id: str, top_k: int = 10) -> list[dict]:
-    """For a job: its skills, highest weight first. For a skill: the jobs it appears in, highest weight first.
-    The weight is the share of the job's postings that mention the skill (explanation only)."""
     g = _graph()
     if (g["job"] == entity_id).any():
         rows = g[g["job"] == entity_id].assign(neighbour=lambda d: d["skill"], neighbour_kind="skill")
@@ -384,7 +407,6 @@ def graph_neighbours(entity_id: str, top_k: int = 10) -> list[dict]:
                     "n_cooccur": int(r.n_cooccur)}) for r in rows.itertuples()]
 
 
-# ---- sources and model -----------------------------------------------------------------------
 def sources_info() -> list[dict]:
     reg = _registry()
     obs = _observations()
@@ -435,22 +457,23 @@ def model_info() -> dict:
         "audit_summary": (last or {}).get("audit") if last else (report or {}).get("audit_summary"),
         "timeline": (report or {}).get("timeline"),
         "report_generated_at": (report or {}).get("generated_at"),
+        "duplicates": (report or {}).get("duplicates"),
         "disclaimer": disclaimer(),
     })
 
 
-# ---- explanation -------------------------------------------------------------------------------
 def explain(entity_id: str) -> dict:
-    """Template explanation. Every number in the text comes from the stored forecast record."""
     kind = entity_kind(entity_id)
     name = T.entity_name(entity_id)
     reg = _registry()
-    caveats = [reg["disclaimer"]]  # the registry disclaimer is always present
+    caveats = [reg["disclaimer"]]
     related = graph_neighbours(entity_id)
     feed, rec = record_for(entity_id)
     drivers = {"source_contributions": None, "source_contributions_units": "log change over the horizon",
                "related": related}
     banner = None
+    window = staleness((rec or {}).get("as_of"), (rec or {}).get("target_period"))
+    shares_with = (rec or {}).get("shares_signal_with")
     if feed == "none":
         status = "no_live_model"
         summary = (f"No forecast is issued for {name}: no model has passed the gate yet "
@@ -464,7 +487,7 @@ def explain(entity_id: str) -> dict:
         summary = f"No forecast is issued for {name}: {rec.get('reason')}."
     else:
         status = "preview" if feed == "preview" else "ok"
-        weeks = rec["horizon_periods"]  # periods on the model grid (weekly)
+        weeks = rec["horizon_periods"]
         lo, mid, hi = _pct(rec["p10"]), _pct(rec["p50"]), _pct(rec["p90"])
         sq = rec.get("signal_quality") or "unknown"
         sq_text = {"noise_like": "noise-like", "trend_detected": "movement above sampling noise",
@@ -474,6 +497,10 @@ def explain(entity_id: str) -> dict:
                    f"the next {weeks} {unit} (to {rec['target_period']}). Median change in its share of postings: "
                    f"{mid:+.1f}%; 10-90% range {lo:+.1f}% to {hi:+.1f}%. Signal quality: {sq_text}; "
                    f"confidence: {rec.get('confidence')}.")
+        if feed == "live":
+            summary += f" Forecast {window['forecast_window']}."
+            if window["stale"]:
+                summary += f" Data is {window['data_age_days']} days old."
         drivers["source_contributions"] = rec.get("source_contributions")
         if rec.get("gate_profile") == "demo":
             caveats.append("Gate profile 'demo': relaxed constraints (sources are weak proxies), not the strict "
@@ -483,20 +510,28 @@ def explain(entity_id: str) -> dict:
             dr = rec.get("dispersion_ratio")
             caveats.append("Movement is indistinguishable from random variation"
                            + (f" (dispersion ratio {dr:.2f})." if dr is not None else "."))
+        if shares_with:
+            summary += f" This series is identical to {shares_with} in our data, so the forecast is that series' forecast."
+            caveats.append(C.DUPLICATE_CAVEAT.format(canon=shares_with))
+    if feed in ("preview", "live"):
+        win = feed_window()
     if feed == "preview":
         reason = (rec or {}).get("preview_reason") or no_live_reason()
-        banner = PREVIEW_BANNER.format(reason=reason)
+        banner = banner_for("preview", win["forecast_as_of"], win["forecast_target_period"], reason)
         summary = f"{banner} {summary}"
         caveats.insert(1, "PREVIEW: not a validated forecast. The model did not pass the validation gate, so this "
                           "number is shown only to demonstrate the pipeline.")
+    elif feed == "live":
+        banner = banner_for("live", win["forecast_as_of"], win["forecast_target_period"])
     return _clean({"entity_id": entity_id, "kind": kind, "status": status, "summary": summary,
                    "drivers": drivers, "caveats": caveats, "feed": feed,
-                   "validated": feed == "live", "banner": banner})
+                   "validated": feed == "live", "banner": banner,
+                   "data_age_days": window["data_age_days"], "stale": window["stale"],
+                   "forecast_window": window["forecast_window"], "shares_signal_with": shares_with,
+                   "duplicate_group": (rec or {}).get("duplicate_group")})
 
 
-# ---- descriptive snapshot (not a forecast) -------------------------------------------------
 def _blocks(starts: pd.DatetimeIndex, freq: str) -> list[pd.DatetimeIndex]:
-    """Maximal runs of consecutive periods (no missing period inside a run), in time order."""
     if len(starts) == 0:
         return []
     ords = pd.PeriodIndex(starts, freq=freq).asi8
@@ -509,16 +544,11 @@ def _span(block: pd.DatetimeIndex) -> str:
 
 
 def _all_observations() -> pd.DataFrame:
-    """Every enabled source read through its loader with no as-of cut. The snapshot describes the source data;
-    the observation store only holds what the agent loop has seen up to its last as_of."""
     frames = [get_loader(s).fetch() for s in C.enabled_sources(_registry())]
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=COLUMNS)
 
 
 def snapshot(kind: str | None = None, limit: int = 50) -> dict:
-    """Per entity: mean share of postings in the first vs the last contiguous block of periods of the leading
-    source(s) with data. Leading sources are chosen from the registry (best tier that has data); no source id
-    or date is hard-coded. Descriptive only: each item is typed descriptive_not_forecast."""
     reg = _registry()
     obs = _all_observations()
     base = {"type": "descriptive_not_forecast", "banner": SNAPSHOT_BANNER, "kind": kind, "limit": limit}

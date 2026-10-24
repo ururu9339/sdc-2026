@@ -1,4 +1,3 @@
-"""Accumulating observation table + tamper-evident append-only logs."""
 from __future__ import annotations
 
 import hashlib
@@ -24,7 +23,6 @@ class ObservationStore:
         return pd.read_csv(self.path, parse_dates=["period"])
 
     def upsert(self, new: pd.DataFrame) -> int:
-        """Append rows, latest value wins per (entity, period, source). Returns rows added."""
         old = self.load()
         if new.empty:
             return 0
@@ -37,7 +35,6 @@ class ObservationStore:
 
 
 class AppendOnlyLog:
-    """JSONL log; each record carries the hash of the previous one, so edits are detectable."""
 
     def __init__(self, path: Path):
         self.path = path
@@ -79,9 +76,6 @@ class AppendOnlyLog:
 
 
 def write_chain(path: Path, records: list[dict]) -> int:
-    """Write `records` as a fresh hash chain at `path` (overwrites). Each record keeps its own logged_at, so the
-    chain verifies with AppendOnlyLog(path).verify() but the original timestamps are preserved. Used to build the
-    serving bundle; the live logs are never rewritten this way."""
     path.parent.mkdir(parents=True, exist_ok=True)
     prev = "genesis"
     with open(path, "w") as f:

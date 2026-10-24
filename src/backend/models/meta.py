@@ -1,4 +1,3 @@
-"""Response shapes shared by every route: the error envelope and the health report."""
 from __future__ import annotations
 
 from typing import Any, Literal, Optional
@@ -14,7 +13,6 @@ class ErrorDetail(BaseModel):
 
 
 class ErrorEnvelope(BaseModel):
-    """Every non-2xx response has this shape. Tracebacks and request bodies are never included."""
     error: ErrorDetail
 
 
@@ -43,6 +41,8 @@ class HealthData(BaseModel):
     live_model: Optional[str] = None
     feed: Literal["live", "preview", "none"]
     forecast_as_of: Optional[str] = None
+    forecast_age_days: Optional[int] = None
+    stale: Optional[bool] = None
     n_forecasts: int
     gate_profile: str
     last_gate: LastGate
@@ -53,8 +53,6 @@ class HealthData(BaseModel):
 
 
 class Health(BaseModel):
-    """ready is true when forecasts can be served, or when the no-model explanation can be served.
-    It is false only when the stored files cannot be read. Always returned with HTTP 200."""
     status: Literal["ok"] = "ok"
     ready: bool
     api_version: str

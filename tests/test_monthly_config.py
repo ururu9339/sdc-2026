@@ -1,7 +1,3 @@
-"""Monthly model grid (PERIOD_FREQ=M) and isolated data paths (SDC_* overrides).
-
-Configuration is read at import time, so each check runs in a fresh interpreter with the environment set
-explicitly. The toy data here is hand-written and lives in tmp_path; the real repo data/ is never touched."""
 import json
 import os
 import subprocess
@@ -63,19 +59,19 @@ def test_monthly_grid_profiles_and_helpers():
     assert out["demo"]["min_train_periods"] == 9 and out["demo"]["mae_margin"] == 0.0
     assert out["demo"]["min_fold_win_rate"] == 0.5 and out["demo"]["coverage_range"] == [0.55, 0.98]
     assert out["demo"]["fold_step"] == 3 and out["demo"]["n_folds"] == 6
-    # period helpers work on month starts
+
     assert out["to_start"] == "2024-02-01"
     assert out["shift_back3"] == "2023-11-01"
     assert out["range"] == ["2024-01-01", "2024-02-01", "2024-03-01"]
     assert out["between"] == 3 and out["span"] == "2024-02-01" and out["label"] == "2024-02-01"
     assert out["ffill_31"] == 1
-    # a monthly figure is usable at the first monthly origin whose end is at or after its own month end
+
     assert out["visible_exact_lag0"] == ["2024-01-01", "2024-02-01"]
     assert out["visible_lag7"] == ["2024-02-01"]
 
 
 def test_weekly_default_is_unchanged():
-    out = json.loads(_run(MONTHLY_CHECK))  # no PERIOD_FREQ, no GATE_PROFILE: the original weekly configuration
+    out = json.loads(_run(MONTHLY_CHECK))
     assert out["freq"] == "W" and out["active"]["name"] == "demo"
     assert out["horizon"] == 12 and out["growth"] == [4, 13, 26] and out["z"] == [13, 26]
     assert out["vol"] == 13 and out["min_history"] == 13 and out["support"] == 13 and out["smooth"] == 4
@@ -83,8 +79,8 @@ def test_weekly_default_is_unchanged():
     assert out["production"]["min_train_periods"] == 52 and out["production"]["fold_step"] == 13
     assert out["production"]["mae_margin"] == 0.03 and out["demo"]["min_train_periods"] == 26
     assert out["to_start"] == "2024-02-12" and out["shift_back3"] == "2024-01-22"
-    assert out["ffill_31"] == 5  # ceil(31 / 7) weeks, as before
-    assert out["visible_exact_lag0"] == ["2024-01-29", "2024-02-26"]  # Feb 1 is a Thursday: week of Jan 29
+    assert out["ffill_31"] == 5
+    assert out["visible_exact_lag0"] == ["2024-01-29", "2024-02-26"]
 
 
 PATHS_CHECK = """
@@ -125,7 +121,6 @@ def test_default_paths_point_at_the_repo_data_without_overrides():
 
 
 def test_monthly_pipeline_runs_end_to_end_in_isolation(tmp_path):
-    """A toy monthly target through the whole agent loop, with every file written under tmp_path."""
     data, models = tmp_path / "data", tmp_path / "models"
     reg = tmp_path / "reg.json"
     reg.write_text(json.dumps({"version": 5, "disclaimer": "toy", "sources": [

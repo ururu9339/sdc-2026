@@ -1,10 +1,3 @@
-"""The HTTP API. Every public route is served under /api/v1 (the schema documents only these). The same routes are
-also served unprefixed as hidden aliases for older clients.
-
-Run:   uvicorn src.backend.main:app --host 0.0.0.0 --port 8000
-Env:   CORS_ORIGINS (comma-separated; default '*'), DATABASE_URL (optional; enables the Qwen matcher),
-       SDC_DATA_DIR / SDC_MODELS_DIR (optional; see src/training/config.py resolve_layout).
-"""
 from __future__ import annotations
 
 import logging
@@ -49,21 +42,21 @@ DESCRIPTION = (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_db_and_tables()  # the candidates database; created at server start, never at import time
+    create_db_and_tables()
     yield
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="SDC-2026 API", version=APP_VERSION, description=DESCRIPTION, openapi_tags=OPENAPI_TAGS,
                   lifespan=lifespan)
-    # Outermost first: CORS, then request id and logging, then the ETag rule, then the routes.
+
     app.add_middleware(ETagMiddleware)
     app.add_middleware(RequestLogMiddleware)
     origins = cors_origins()
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
-        allow_credentials=origins != ["*"],  # browsers reject credentials with a wildcard origin
+        allow_credentials=origins != ["*"],
         allow_methods=["*"],
         allow_headers=["*"],
         expose_headers=[REQUEST_ID_HEADER, "ETag"],
@@ -75,8 +68,8 @@ def create_app() -> FastAPI:
     public.include_router(report_router)
     public.include_router(health_api.router)
     app.include_router(public, prefix=API_PREFIX)
-    app.include_router(public, include_in_schema=False)  # unprefixed aliases, hidden from the schema
-    app.include_router(candidates_router)  # already /api/v1/candidates
+    app.include_router(public, include_in_schema=False)
+    app.include_router(candidates_router)
     return app
 
 

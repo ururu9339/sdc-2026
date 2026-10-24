@@ -1,4 +1,3 @@
-"""CV-to-report, candidate report and the taxonomy lists. Report responses are never cached (no-store)."""
 from __future__ import annotations
 
 import re

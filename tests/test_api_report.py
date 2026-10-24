@@ -1,6 +1,3 @@
-"""HTTP tests for POST /report, GET /report/candidate/{id}, GET /taxonomy/skills.
-The candidate tests use a temporary SQLite database through FastAPI's dependency override, so the
-application's ./sdc2026.db is never touched."""
 import uuid
 
 import pytest
@@ -19,7 +16,6 @@ def _no_database(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
 
 
-# ---- POST /report ---------------------------------------------------------------------------------
 def test_post_report_offline_example_is_200_and_labelled(preview_env):
     r = client.post("/report", json={"skills": ["skill:accounting", "skill:excel"]})
     assert r.status_code == 200
@@ -65,7 +61,6 @@ def test_post_report_rejects_unknown_engine(no_model_env):
     assert client.post("/report", json={"skills": ["skill:python"], "engine": "gpt"}).status_code == 422
 
 
-# ---- GET /report/candidate/{id} ---------------------------------------------------------------------
 @pytest.fixture
 def candidate_db(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'candidates.db'}", connect_args={"check_same_thread": False})
@@ -113,7 +108,6 @@ def test_candidate_report_rejects_bad_horizon_and_engine(preview_env, candidate_
     assert client.get(f"/report/candidate/{candidate_db}", params={"engine": "gpt"}).status_code == 422
 
 
-# ---- taxonomy and the front end ---------------------------------------------------------------------
 def test_taxonomy_skills_lists_the_real_vocabulary():
     body = client.get("/taxonomy/skills").json()
     assert body["count"] == len(body["items"]) >= 100

@@ -1,5 +1,3 @@
-"""HTTP tests for the read-only forecast API. TestClient is used without the startup hook, so the SQLite
-candidates database is never touched. Fixtures live in conftest.py."""
 from fastapi.testclient import TestClient
 
 from src.backend.main import app
@@ -12,7 +10,6 @@ def test_health():
     assert body["status"] == "ok" and body["ready"] is True and "feed" in body["data"]
 
 
-# ---- no live model: the real shape of today ----------------------------------------------
 def test_forecast_no_live_model_is_200_not_error(no_model_env):
     r = client.get("/forecast")
     assert r.status_code == 200
@@ -41,7 +38,7 @@ def test_explain_no_live_model_has_no_numbers(no_model_env):
     assert body["status"] == "no_live_model"
     assert "%" not in body["summary"]
     assert body["drivers"]["source_contributions"] is None
-    # related skills come from the job-skill graph, not from a forecast
+
     assert [n["entity_id"] for n in body["drivers"]["related"]] == ["skill:accounting", "skill:excel", "skill:python"]
     assert any("No live model" in c for c in body["caveats"])
 
@@ -68,7 +65,6 @@ def test_history_rejects_bad_n_periods(no_model_env):
     assert client.get("/history/job:accountant", params={"n_periods": 0}).status_code == 422
 
 
-# ---- live model: three hand-written forecast records (ok/stable noise_like, ok/emerging, insufficient) --
 def test_forecast_list_live(live_model_env):
     body = client.get("/forecast").json()
     assert body["status"] == "ok" and body["model_version"] == "v1" and body["gate_profile"] == "demo"

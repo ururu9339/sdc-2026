@@ -1,29 +1,3 @@
-"""Adapter: Job-SDF (NeurIPS 2024 Datasets and Benchmarks) -> the target series of the proof-run registry.
-
-    python3 -m src.sources.job_sdf inspect [DATASET_DIR]   # check the identities, print the facts
-    python3 -m src.sources.job_sdf build [DATASET_DIR]     # write <SDC_DATA_DIR>/raw/job_sdf.csv + .meta.json
-
-Real data: 10.35M job advertisements from Chinese recruitment platforms, 2021-01 to 2023-12, with anonymised
-ids. Demand tables (demand/*.parquet) hold skill mention counts; proportion tables hold the same counts
-divided by the number of job ads in that month. Found empirically (see inspect()):
-
-  - r0 has one row group (r0_id 0): the all-occupation aggregate. r1 has the 14 L1 occupations (r1_id 0..13).
-    r0 demand equals the sum of r1 demand over occupations, skill by skill, exactly.
-  - proportion = demand / ADS, where ADS is the number of job ads in that month (for r0: all occupations;
-    for r1: that occupation). ADS = sum(demand) / sum(proportion) per month, and every row satisfies
-    demand / ADS == proportion to floating-point precision. The occupation ads sum exactly to the total.
-  - So the denominator is a count of job ads, not of mentions (sum of proportion is ~8.6 per month, the
-    average number of skills mentioned per ad).
-
-Entities written (long format, monthly, zero-filled, contiguous):
-  kind 'skill'   skill_<id>      a skill over all occupations (r0). support = mention count; value = count / ADS.
-  kind 'job'     occupation_<id> an L1 occupation (r1). support = ads in that occupation; value = ads / ADS,
-                                 the share of all ads that are in that occupation.
-Skills are the top TOP_SKILLS by total mentions; skills with fewer than MIN_SKILL_TOTAL mentions over all
-months are dropped (none of the top 300 is below it). All 14 occupations are kept.
-
-Provenance: Job-SDF paper, CC BY-NC-SA 4.0. Method-validation use only; not Malaysian market data.
-"""
 from __future__ import annotations
 
 import argparse
@@ -40,9 +14,9 @@ from src.training import config as C
 SOURCE_ID = "job_sdf"
 DEFAULT_DATASET = C.ROOT / "src" / "data" / "job_sdf" / "dataset"
 TOP_SKILLS = 300
-MIN_SKILL_TOTAL = 1000  # mentions over all months; below this a skill is dropped even if it is in the top
-IDENTITY_TOL = 1e-9  # max |demand / ADS - proportion|, absolute
-INTEGER_TOL = 1e-6  # max |ADS - round(ADS)|
+MIN_SKILL_TOTAL = 1000
+IDENTITY_TOL = 1e-9
+INTEGER_TOL = 1e-6
 MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
 KEYS_R0, KEYS_R1 = ["r0_id", "skill_id"], ["r1_id", "skill_id"]
 
@@ -57,7 +31,6 @@ def _read_pair(dataset: Path, name: str) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def _ads(demand: np.ndarray, prop: np.ndarray, label: str) -> np.ndarray:
-    """ADS per month = sum(demand) / sum(proportion); raises if the identity demand / ADS == proportion fails."""
     p_tot = prop.sum(axis=0)
     if (p_tot <= 0).any():
         raise ValueError(f"{label}: a month has no proportion mass")
@@ -71,7 +44,6 @@ def _ads(demand: np.ndarray, prop: np.ndarray, label: str) -> np.ndarray:
 
 
 def _checked(dataset: Path) -> dict:
-    """Load both granularities used here and verify every identity. Raises ValueError on any failure."""
     d0, p0 = _read_pair(dataset, "r0")
     d1, p1 = _read_pair(dataset, "r1")
     months = [c for c in d0.columns if MONTH_RE.match(str(c))]
@@ -91,7 +63,7 @@ def _checked(dataset: Path) -> dict:
     ads_all = _ads(D0, P0, "r0")
     skills = d0.set_index("skill_id")[months].astype(float)
 
-    # r1: per-occupation ADS, and the occupations must add up to the total
+
     occ_ids = sorted(d1["r1_id"].unique())
     occ = pd.DataFrame(index=months, columns=occ_ids, dtype=np.int64)
     for o in occ_ids:
@@ -100,7 +72,7 @@ def _checked(dataset: Path) -> dict:
     if not (occ.sum(axis=1).to_numpy() == ads_all).all():
         raise ValueError("occupation job-ad counts do not sum to the all-occupation total")
 
-    # r0 demand is the sum of r1 demand over occupations, skill by skill
+
     by_skill = d1.groupby("skill_id")[months].sum().reindex(skills.index).fillna(0.0)
     if not np.array_equal(by_skill.to_numpy(), skills.to_numpy()):
         raise ValueError("r0 demand is not the sum of r1 demand over occupations")
@@ -127,7 +99,6 @@ def _facts(chk: dict, dataset: Path) -> dict:
 
 
 def inspect(dataset: str | Path = DEFAULT_DATASET) -> dict:
-    """Verify the identities the adapter relies on and return the facts. Raises ValueError if any fails."""
     dataset = Path(dataset)
     return _facts(_checked(dataset), dataset)
 

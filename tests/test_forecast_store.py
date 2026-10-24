@@ -1,4 +1,3 @@
-"""Service-level tests for the read-only forecast store, on hand-written fixtures (see conftest.py)."""
 import math
 
 
@@ -32,7 +31,7 @@ def test_live_state_latest_run_only(live_model_env):
     assert {r["entity_id"] for r in recs} == {"job:accountant", "job:ai_engineer", "job:business_analyst"}
     assert all(r["as_of"] == "2026-09-14" for r in recs)
     acc = store.forecast_for("job:accountant")
-    assert acc["as_of"] == "2026-09-14" and acc["p50"] == 0.01  # not the older 2026-09-07 run
+    assert acc["as_of"] == "2026-09-14" and acc["p50"] == 0.01
     assert store.forecast_for("unknown_entity") is None
 
 
@@ -50,7 +49,7 @@ def test_explain_percent_conversion_and_caveats(live_model_env):
     lo, hi = math.exp(0.10) - 1, math.exp(0.45) - 1
     assert f"{100 * lo:+.1f}% to {100 * hi:+.1f}%" in out["summary"]
     assert "12 weeks" in out["summary"] and "to 2026-12-07" in out["summary"]
-    assert "trend_detected" not in out["summary"]  # signal quality is spoken, not dumped as a code
+    assert "trend_detected" not in out["summary"]
     assert out["caveats"][0] == "Test disclaimer: fixture data, for demonstration only."
     assert any("'demo'" in c for c in out["caveats"])
     assert not any("random variation" in c for c in out["caveats"])

@@ -1,10 +1,3 @@
-"""Step 8: match a user's skills to jobs and rank their skill gaps.
-
-    python -m embeddings.match "python3" "SQL" "excel" "data viz"
-
-Similarity decides overlap; growth numbers come only from the forecaster's entity_forecast table.
-An entity without a forecast is marked 'no_forecast' and treated as neutral (growth 0), never estimated here.
-"""
 import argparse
 import math
 
@@ -12,20 +5,18 @@ from embeddings import db
 from embeddings.graph import job_skill_profile
 from embeddings.normalize import normalize
 
-HORIZON = 12        # months
-REACH = 0.5         # weighted share of a job's profile the user already has
-DECLINE_LOG = 0.10  # src/training/config.py DIRECTION_THRESHOLD: below -this log growth the forecaster says declining
-PROFILE_SIZE = 15   # skills per job considered
-TOP_TARGETS = 3     # jobs whose gaps are ranked
+HORIZON = 12
+REACH = 0.5
+DECLINE_LOG = 0.10
+PROFILE_SIZE = 15
+TOP_TARGETS = 3
 
 
 def declining(growth):
-    """Same rule as the forecaster's direction label: median log growth below -DECLINE_LOG."""
     return growth is not None and math.log1p(growth) < -DECLINE_LOG
 
 
 def resolve_skills(conn, items):
-    """Skill IDs picked from the taxonomy pass through; free text is normalized like posting mentions."""
     known = {r[0] for r in conn.execute("SELECT entity_id FROM entity_embedding WHERE entity_type = 'skill'")}
     ids, report = {}, []
     text = [s for s in items if s not in known]
@@ -71,14 +62,10 @@ def match_user(conn, skills, horizon=HORIZON):
         })
 
     results.sort(key=lambda r: (-r["coverage"], -(r["job_growth"] or 0)))
-    # Within reach: enough overlap, and the forecaster does not call the job declining. A small dip it still
-    # labels stable (e.g. -3%) is noise, not a reason to hide a job the user nearly qualifies for.
+
     within_reach = [r for r in results if r["coverage"] >= REACH and not declining(r["job_growth"])]
     targets = (within_reach or results)[:TOP_TARGETS]
 
-    # Gap score = graph weight x (1 + forecast skill growth): weight alone when there is no forecast,
-    # boosted for growing skills, discounted for shrinking ones. Summed over target jobs, so a gap shared
-    # by several jobs earns credit in proportion to how much each needs it, not just for being shared.
     gaps = {}
     for r in targets:
         for d in r["missing"]:

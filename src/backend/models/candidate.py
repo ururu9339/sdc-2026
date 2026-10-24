@@ -18,7 +18,7 @@ class CandidateBase(SQLModel):
     skills: Optional[str] = Field(default=None)
     certifications: Optional[str] = Field(default=None)
     languages: Optional[str] = Field(default=None)
-    source: str = Field(default="form", max_length=20)  # "form" | "ocr_pdf"
+    source: str = Field(default="form", max_length=20)
 
 
 class Candidate(CandidateBase, table=True):

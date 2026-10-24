@@ -3,7 +3,7 @@ import numpy as np
 from embeddings import db
 
 EMBED_TOP_K = 25
-MIN_POSTINGS = 20 
+MIN_POSTINGS = 20
 
 
 def _vectors(conn, entity_type, tag):
@@ -65,10 +65,6 @@ def build_graph(conn):
 
 
 def job_skill_profile(conn, job_id, limit=15):
-    """Skills for a job, weight in [0, 1], with the evidence behind each weight.
-
-    Co-occurrence is trusted in proportion to how many postings back it (alpha = n / MIN_POSTINGS).
-    Embedding similarity is min-max scaled over the job's top-k so the weakest kept skill is ~0."""
     rows = conn.execute(
         "SELECT e.skill_id, x.name, e.cooc_postings, e.job_postings, e.cooc_weight, e.embed_sim "
         "FROM job_skill_edge e JOIN entity_embedding x ON x.entity_id = e.skill_id WHERE e.job_id = %s",

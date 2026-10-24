@@ -1,10 +1,7 @@
-"""Hand-written fixtures for the read-only forecast API: a tiny registry, observations, job-skill graph,
-version log, forecast and preview logs (optional). Entity ids use the taxonomy form ('job:...', 'skill:...').
-Everything lives in tmp_path and the config paths are pointed at it with monkeypatch, so the real data/ and
-src/models/ are never read."""
 from __future__ import annotations
 
 import json
+from datetime import date
 
 import pandas as pd
 import pytest
@@ -41,7 +38,7 @@ REGISTRY = {
     ],
 }
 
-WEEKS = pd.date_range("2026-07-06", periods=6, freq="W-MON")  # six Mondays
+WEEKS = pd.date_range("2026-07-06", periods=6, freq="W-MON")
 MONTHS = pd.to_datetime(["2026-06-01", "2026-07-01", "2026-08-01"])
 
 
@@ -106,7 +103,6 @@ PREVIEW_REASON = "failed: beats_baseline, fold_win_rate"
 
 
 def _preview_records() -> list[dict]:
-    """Unvalidated candidate forecasts, as the agent loop writes them to the preview log."""
     common = dict(model_version="preview:v1", feed="preview", validated=False, preview_reason=PREVIEW_REASON,
                   gate_profile="demo")
     return [
@@ -180,19 +176,21 @@ def build_env(tmp_path, monkeypatch, live: bool, preview: bool = False) -> dict:
             "obs_path": obs_path}
 
 
+@pytest.fixture(autouse=True)
+def fixed_today(monkeypatch):
+    monkeypatch.setattr(C, "utc_today", lambda: date(2026, 9, 20))
+
+
 @pytest.fixture
 def no_model_env(tmp_path, monkeypatch):
-    """Today's real shape: gate rejected every candidate, no live model, no forecast log."""
     return build_env(tmp_path, monkeypatch, live=False)
 
 
 @pytest.fixture
 def live_model_env(tmp_path, monkeypatch):
-    """A promoted model with four logged forecast records (one older run, three in the newest run)."""
     return build_env(tmp_path, monkeypatch, live=True)
 
 
 @pytest.fixture
 def preview_env(tmp_path, monkeypatch):
-    """No live model, but the gate-rejected candidate's preview forecasts exist (validated: false)."""
     return build_env(tmp_path, monkeypatch, live=False, preview=True)

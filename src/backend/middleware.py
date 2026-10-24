@@ -1,9 +1,3 @@
-"""Pure ASGI middleware: request ids and one log line per request; a content-hash ETag for the cacheable
-GET listings; and the CORS settings read from the environment.
-
-Logging: request id, method, path (no query string), status and milliseconds. Never request bodies, headers,
-CV text or exception messages. Unhandled errors are logged by exception class only and answered with the
-standard internal_error body."""
 from __future__ import annotations
 
 import hashlib
@@ -32,7 +26,6 @@ DEFAULT_CORS = ["*"]
 
 
 def cors_origins(value: str | None = None) -> list[str]:
-    """CORS_ORIGINS: comma-separated origins. Unset or blank means '*'."""
     raw = os.environ.get("CORS_ORIGINS") if value is None else value
     origins = [o.strip().rstrip("/") for o in (raw or "").split(",") if o.strip()]
     return origins or list(DEFAULT_CORS)
@@ -78,7 +71,7 @@ class RequestLogMiddleware:
 
         try:
             await self.app(scope, receive, send_wrapper)
-        except Exception as exc:  # answered here, so CORS and the request id still reach the client
+        except Exception as exc:
             frame = exc.__traceback__
             while frame is not None and frame.tb_next is not None:
                 frame = frame.tb_next
@@ -95,16 +88,12 @@ class RequestLogMiddleware:
 
 
 def _is_no_store(scope: dict) -> bool:
-    """Report responses (POST /report and GET /report/candidate/{id}) can hold CV-derived data: never stored."""
     path = scope.get("path", "")
     return (scope.get("method") == "POST" and path in ("/report", f"{API_PREFIX}/report")) or \
         path.startswith(("/report/candidate/", f"{API_PREFIX}/report/candidate/"))
 
 
 class ETagMiddleware:
-    """Caching rules. GET listings that change only when the data changes get an ETag (a hash of the body),
-    Cache-Control no-cache (revalidate every time), and If-None-Match gets 304 with no body. Report responses
-    get Cache-Control no-store, including error responses."""
 
     def __init__(self, app: Callable[..., Awaitable[None]]):
         self.app = app
@@ -134,7 +123,7 @@ class ETagMiddleware:
             if message.get("more_body", False):
                 return
             start = held.get("start")
-            if start is None:  # nothing was started; pass through
+            if start is None:
                 return await send(message)
             body = b"".join(chunks)
             headers = MutableHeaders(scope=start)

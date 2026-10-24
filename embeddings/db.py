@@ -1,4 +1,3 @@
-"""Postgres/pgvector connection and the version health check."""
 import os
 from pathlib import Path
 from urllib.parse import urlparse
@@ -46,7 +45,6 @@ def set_meta(conn, key, value):
 
 
 def ollama_model_digest():
-    """Digest of the locally pulled model, so a re-pulled build of the same tag is caught too."""
     base = embedder.OLLAMA.rsplit("/api/", 1)[0]
     r = requests.get(f"{base}/api/tags", headers=embedder.auth_headers(), timeout=10)
     r.raise_for_status()
@@ -57,8 +55,6 @@ def ollama_model_digest():
 
 
 def check_version(conn):
-    """Fail loudly if this process would embed with different settings than the stored vectors.
-    Call at startup of anything that embeds live queries and compares them to Postgres."""
     stored = get_meta(conn, "model_version")
     if stored is None:
         raise VersionMismatch("No taxonomy index in the database; run python -m embeddings.build_index")
@@ -77,7 +73,6 @@ def check_version(conn):
 
 
 def check_ollama_exposure():
-    """Warnings for an Ollama endpoint that is reachable without protection."""
     warnings = []
     u = urlparse(embedder.OLLAMA)
     local = u.hostname in ("localhost", "127.0.0.1", "::1")

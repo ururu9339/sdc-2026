@@ -1,6 +1,3 @@
-"""Job-descriptions and job-market adapters and period selection on tiny hand-written CSVs (fixtures, not datasets).
-
-Adapter parameters come from the registry entry; tests pass an overridden copy instead of editing module globals."""
 import json
 
 import pandas as pd
@@ -17,12 +14,12 @@ def _cfg(source_id, **overrides):
 
 @pytest.fixture
 def jd_csv(tmp_path):
-    rows = [  # weeks (Monday start): Jan 1, Jan 8, Jan 8, Jan 15, -, Jan 22, Jan 29, Jan 29
+    rows = [
         ("2024-01-05", "Data Analyst", "Data Analyst", "python, sql"),
         ("2024-01-09", "Accountant", "", "excel"),
         ("2024-01-10", "Random Thing", "Random", "python sql"),
-        ("2024-01-20", "Data Analyst", "Analyst", None),  # Role has no family: falls back to Job Title
-        ("not-a-date", "Data Analyst", "Data Analyst", "python"),  # unparseable date: excluded
+        ("2024-01-20", "Data Analyst", "Analyst", None),
+        ("not-a-date", "Data Analyst", "Data Analyst", "python"),
         ("2024-01-23", "Accountant", "Accountant", "sql"),
         ("2024-02-03", "Data Analyst", "Data Analyst", "python"),
         ("2024-02-04", "Accountant", "Accountant", "sql"),
@@ -39,13 +36,13 @@ def test_jd_weekly_shares_graph_and_meta(tmp_path, jd_csv):
 
     obs = pd.read_csv(out, parse_dates=["period"]).set_index(["entity_id", "period"])
     wk = lambda d: pd.Timestamp(d)  # noqa: E731
-    assert obs.loc[("skill:python", wk("2024-01-01")), "value"] == 1.0  # row 1 of 1 postings
-    assert obs.loc[("skill:python", wk("2024-01-08")), "value"] == 0.5  # row 3 of 2 postings
-    assert obs.loc[("skill:python", wk("2024-01-29")), "value"] == 0.5  # row 7 of 2
-    assert obs.loc[("job:data_analyst", wk("2024-01-08")), "value"] == 0.0  # present entity, zero that week
-    assert obs.loc[("job:accountant", wk("2024-01-08")), "value"] == 0.5  # row 2 of 2 (Role matched)
+    assert obs.loc[("skill:python", wk("2024-01-01")), "value"] == 1.0
+    assert obs.loc[("skill:python", wk("2024-01-08")), "value"] == 0.5
+    assert obs.loc[("skill:python", wk("2024-01-29")), "value"] == 0.5
+    assert obs.loc[("job:data_analyst", wk("2024-01-08")), "value"] == 0.0
+    assert obs.loc[("job:accountant", wk("2024-01-08")), "value"] == 0.5
     assert obs.loc[("job:accountant", wk("2024-01-22")), "support"] == 1
-    assert obs.loc[("job:data_analyst", wk("2024-01-15")), "value"] == 1.0  # Role empty -> Job Title fallback
+    assert obs.loc[("job:data_analyst", wk("2024-01-15")), "value"] == 1.0
     assert obs["kind"].isin(["skill", "job"]).all()
 
     meta = json.loads(out.with_suffix(".meta.json").read_text())
@@ -55,7 +52,7 @@ def test_jd_weekly_shares_graph_and_meta(tmp_path, jd_csv):
     assert meta["dropped_periods"] == []
 
     edges = pd.read_csv(graph).set_index(["job", "skill"])
-    # data_analyst: rows 1, 4, 7 are dated and matched (the bad-date row is excluded)
+
     assert edges.loc[("job:data_analyst", "skill:python"), "n_job_postings"] == 3
     assert edges.loc[("job:data_analyst", "skill:python"), "n_cooccur"] == 2
     assert edges.loc[("job:data_analyst", "skill:python"), "weight"] == pytest.approx(2 / 3)
@@ -73,7 +70,7 @@ def test_jd_chunking_does_not_change_output(tmp_path, jd_csv):
 
 
 def test_dense_source_with_an_empty_week_is_an_error(tmp_path, jd_csv):
-    # with a threshold of 2 the Jan 15 week (1 posting) is dropped, leaving a hole in a dense series
+
     with pytest.raises(ValueError, match="dense range"):
         jd.build(jd_csv, out=tmp_path / "x.csv", graph_out=tmp_path / "g.csv",
                  cfg=_cfg("job_postings", min_period_postings=2, min_entity_total=1))
@@ -87,7 +84,7 @@ def test_select_periods_drops_low_volume_and_respects_density():
         {"period": "2024-01-01", "total_postings": 2, "reason": "fewer than 3 postings"}]
     sparse = pd.Series([10, 10, 10], index=pd.to_datetime(["2024-01-01", "2024-01-15", "2024-01-29"]))
     grid, _ = select_periods(sparse, 3, "weekly", dense=False)
-    assert len(grid) == 3  # gaps are kept as gaps, not filled
+    assert len(grid) == 3
     assert gap_periods(grid, "weekly") == ["2024-01-08", "2024-01-22"]
     with pytest.raises(ValueError):
         select_periods(sparse, 3, "weekly", dense=True)
@@ -102,10 +99,10 @@ def test_job_market_shares_and_zero_fill(tmp_path):
     cfg = _cfg("market_signal", min_period_postings=1, min_entity_total=1)
     obs, meta = jm.build_observations(raw, cfg)
     obs = obs.set_index(["entity_id", "period"])
-    assert obs.loc[("job:ux_designer", "2024-01-01"), "value"] == 0.75  # 3 of 4 January rows
+    assert obs.loc[("job:ux_designer", "2024-01-01"), "value"] == 0.75
     assert obs.loc[("job:data_analyst", "2024-01-01"), "value"] == 0.25
-    assert obs.loc[("job:data_analyst", "2024-02-01"), "value"] == 0.5  # 2 of 4 February rows (unknown ones count)
-    assert obs.loc[("job:ux_designer", "2024-02-01"), "value"] == 0  # contiguous month with no rows: zero
+    assert obs.loc[("job:data_analyst", "2024-02-01"), "value"] == 0.5
+    assert obs.loc[("job:ux_designer", "2024-02-01"), "value"] == 0
     assert set(obs.index.get_level_values("entity_id")) == {"job:ux_designer", "job:data_analyst"}
     assert meta["unmatched_occupations"] == ["Unknown Role"]
     assert obs["kind"].eq("job").all()

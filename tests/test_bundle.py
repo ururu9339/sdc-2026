@@ -1,5 +1,3 @@
-"""Serving bundle: contents, manifest hashes, size limit, chain validity, failure without damage, and the API
-serving a bundle with the same answers as the source state. Fixtures only (conftest.build_env)."""
 import hashlib
 import json
 from datetime import datetime, timezone
@@ -62,7 +60,7 @@ def test_only_the_newest_as_of_is_kept_and_the_chain_verifies(preview_source):
     assert len(records) == 3 and {r["as_of"] for r in records} == {"2026-09-14"}
     assert AppendOnlyLog(out / "preview_log.jsonl").verify() is True
     assert m["row_counts"]["forecasts"] == 3
-    # the original logged_at timestamps are kept, not rewritten at export time
+
     original = {r["forecast_id"]: r["logged_at"] for r in AppendOnlyLog(C.PREVIEW_LOG_PATH).read()}
     assert all(original[r["forecast_id"]] == r["logged_at"] for r in records)
 
@@ -124,7 +122,7 @@ def test_api_serves_the_bundle_with_the_same_answers(preview_source, monkeypatch
                                                 "/api/v1/explain/job:ai_engineer", "/api/v1/model")}
     out = preview_source / "serving"
     export_bundle.build_bundle(out, now=NOW)
-    # re-point every runtime path at the bundle, as SDC_DATA_DIR / SDC_MODELS_DIR would
+
     monkeypatch.setattr(C, "DATA_DIR", out)
     monkeypatch.setattr(C, "PROCESSED_DIR", out / "processed")
     monkeypatch.setattr(C, "RAW_DIR", out / "raw")

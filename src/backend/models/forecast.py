@@ -1,4 +1,3 @@
-"""Response models for the read-only forecast API. Values are stored records; nothing is computed here."""
 from __future__ import annotations
 
 from typing import Any, Literal, Optional
@@ -7,8 +6,6 @@ from pydantic import BaseModel, Field
 
 
 class ForecastRecord(BaseModel):
-    """One forecast as stored. p50, p10, p90 are log changes in the smoothed share over the horizon;
-    growth = exp(p50) - 1 is derived by clients. Values are never edited after logging."""
     forecast_id: str
     model_version: Optional[str] = None
     as_of: str
@@ -35,6 +32,12 @@ class ForecastRecord(BaseModel):
     feed: Optional[Literal["live", "preview"]] = None
     validated: Optional[bool] = None
     preview_reason: Optional[str] = None
+    data_age_days: Optional[int] = None
+    stale: Optional[bool] = None
+    forecast_window: Optional[str] = None
+    shares_signal_with: Optional[str] = None
+    duplicate_group: Optional[list[str]] = None
+    caveat: Optional[str] = None
 
 
 class GateSummary(BaseModel):
@@ -66,6 +69,9 @@ class LiveForecastList(BaseModel):
     target_period: Optional[str] = None
     horizon_periods: Optional[int] = None
     disclaimer: Optional[str] = None
+    data_age_days: Optional[int] = None
+    stale: Optional[bool] = None
+    forecast_window: Optional[str] = None
     count: int
     total: int = 0
     offset: int = 0
@@ -74,7 +80,6 @@ class LiveForecastList(BaseModel):
 
 
 class PreviewForecastList(BaseModel):
-    """Unvalidated candidate forecasts. Served only while no model has passed the gate."""
     status: Literal["preview"] = "preview"
     feed: Literal["preview"] = "preview"
     validated: bool = False
@@ -86,6 +91,9 @@ class PreviewForecastList(BaseModel):
     target_period: Optional[str] = None
     horizon_periods: Optional[int] = None
     disclaimer: Optional[str] = None
+    data_age_days: Optional[int] = None
+    stale: Optional[bool] = None
+    forecast_window: Optional[str] = None
     count: int
     total: int = 0
     offset: int = 0
@@ -118,6 +126,9 @@ class EntityForecast(BaseModel):
     reason: Optional[str] = None
     forecast: Optional[ForecastRecord] = None
     disclaimer: Optional[str] = None
+    data_age_days: Optional[int] = None
+    stale: Optional[bool] = None
+    forecast_window: Optional[str] = None
 
 
 class HistoryPoint(BaseModel):
@@ -172,6 +183,11 @@ class Explanation(BaseModel):
     summary: str
     drivers: Drivers
     caveats: list[str]
+    data_age_days: Optional[int] = None
+    stale: Optional[bool] = None
+    forecast_window: Optional[str] = None
+    shares_signal_with: Optional[str] = None
+    duplicate_group: Optional[list[str]] = None
 
 
 class SnapshotItem(BaseModel):
@@ -238,5 +254,6 @@ class ModelInfo(BaseModel):
     latest_attempt: Optional[GateSummary] = None
     audit_summary: Optional[list[dict[str, Any]]] = None
     timeline: Optional[dict[str, Any]] = None
+    duplicates: Optional[dict[str, Any]] = None
     report_generated_at: Optional[str] = None
     disclaimer: Optional[str] = None

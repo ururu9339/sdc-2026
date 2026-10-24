@@ -1,10 +1,3 @@
-"""Model report: signal audit, timeline coverage, walk-forward folds, gate verdict and ablation.
-
-    python3 -m src.training.report [--as-of YYYY-MM-DD] [--profile production|demo]
-
-Read-only with respect to the pipeline: it reads the raw source files through the same loaders the
-agent loop uses, writes data/model_report.json and prints a summary. It does not touch the
-observation store, the logs or the saved models."""
 from __future__ import annotations
 
 import argparse
@@ -16,7 +9,8 @@ import pandas as pd
 from src.sources.loaders import get_loader
 from src.training import config as C
 from src.training.ablation import run_ablation
-from src.training.audit import records, signal_audit, source_coverage, summarise_audit
+from src.training.audit import (duplicate_groups, duplicate_summary, records, signal_audit, source_coverage,
+                                summarise_audit)
 from src.training.backtest import evaluate_gate, walk_forward
 from src.training.features import build_feature_table, column_source_map, feature_columns, usable
 from src.training.train import fit_models, source_contributions
@@ -62,6 +56,8 @@ def main() -> None:
 
     audit = signal_audit(obs, registry, as_of)
     audit_summary = summarise_audit(audit, registry)
+    groups = duplicate_groups(obs, registry, as_of)
+    dup_summary = duplicate_summary(groups, n_entities=int((audit["source_id"] == tgt).sum()))
     coverage_full = source_coverage(obs, registry, None)
     coverage_asof = source_coverage(obs, registry, as_of)
 
@@ -71,7 +67,7 @@ def main() -> None:
     gate = evaluate_gate(folds, profile)
 
     importance = None
-    if gate["passed"]:  # reported only for a model that would be promoted; not saved here
+    if gate["passed"]:
         train = usable(feats)
         train = train[train["y"].notna()]
         models = fit_models(train, cols)
@@ -86,6 +82,12 @@ def main() -> None:
     print(f"=== Model report as of {C.period_label(as_of)} (target: {tgt}, gate profile: {profile['name']}) ===\n")
     print("1. Signal audit (dispersion ratio ~1 = indistinguishable from sampling noise)")
     print(audit_summary.to_string(index=False), "\n")
+    print(f"1b. Duplicate series: {dup_summary['groups']} groups, {dup_summary['entities_collapsed']} entities "
+          f"collapsed into canonical members ({dup_summary['series_before']} series -> {dup_summary['series_after']})")
+    for g in groups:
+        print(f"    canonical {g['canonical']}: members {', '.join(g['members'])} "
+              f"(kinds {'/'.join(g['kinds'])}, {g['shared_periods']} shared periods)")
+    print()
     print("2. Timeline coverage (all data | known at as_of)")
     cov = coverage_full.merge(coverage_asof[["source_id", "periods", "overlap_periods"]], on="source_id",
                               suffixes=("_all", "_asof"))
@@ -109,6 +111,7 @@ def main() -> None:
         "timeline": {"all_data": records(coverage_full), "known_at_as_of": records(coverage_asof)},
         "folds": records(folds), "gate": gate, "gate_verdict": verdict,
         "ablation": records(ablation), "source_importance": importance,
+        "duplicates": {**dup_summary, "groups": groups},
     }
     C.REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     C.REPORT_PATH.write_text(json.dumps(report, indent=2, default=str))

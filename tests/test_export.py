@@ -1,6 +1,3 @@
-"""Exporter: record -> entity_forecast rows, the upsert SQL against a FAKE connection, the preview refusal.
-
-NOT verified against a real Postgres: write_rows is exercised with a fake cursor/connection only."""
 import csv
 import math
 from datetime import datetime, timezone
@@ -21,9 +18,9 @@ def _rec(entity, as_of="2026-10-18", p50=0.1, status="ok", version="v1", horizon
 
 
 def test_horizon_is_converted_from_periods_to_months():
-    assert E.horizon_months(12, 7.0) == 3      # 12 weeks -> 2.76 months -> 3
-    assert E.horizon_months(26, 7.0) == 6      # 26 weeks -> 5.98 -> 6
-    assert E.horizon_months(3, 30.44) == 3     # monthly grid, one quarter
+    assert E.horizon_months(12, 7.0) == 3
+    assert E.horizon_months(26, 7.0) == 6
+    assert E.horizon_months(3, 30.44) == 3
 
 
 def test_growth_is_relative_change_of_the_smoothed_share():
@@ -51,7 +48,7 @@ def test_newest_ok_record_per_entity_and_skips_are_counted():
     ]
     rows, counts = E.rows_from_records(records, "live", VALID, NOW)
     assert [r["entity_id"] for r in rows] == ["skill:python"]
-    assert rows[0]["growth"] == pytest.approx(math.exp(0.02) - 1)  # the 2026-10-11 record, not the older one
+    assert rows[0]["growth"] == pytest.approx(math.exp(0.02) - 1)
     assert counts == {"records": 4, "not_ok": 1, "not_in_taxonomy": 1, "entities_exported": 1, "from_older_run": 0}
 
 
@@ -95,7 +92,7 @@ def test_upsert_sql_and_parameters_on_a_fake_connection():
     assert "INSERT INTO entity_forecast (entity_id, horizon_months, growth, model_version, created_at)" in sql
     assert "ON CONFLICT (entity_id, horizon_months, model_version)" in sql
     assert "DO UPDATE SET growth = EXCLUDED.growth, created_at = EXCLUDED.created_at" in sql
-    by_entity = {p[0]: p for p in params}  # rows are written in entity_id order
+    by_entity = {p[0]: p for p in params}
     assert [p[0] for p in params] == ["job:accountant", "skill:python"]
     assert by_entity["skill:python"] == ("skill:python", 3, pytest.approx(math.exp(0.1) - 1), "v1", NOW)
     assert commit == ("commit",)

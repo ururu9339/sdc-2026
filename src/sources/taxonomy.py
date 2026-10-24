@@ -1,21 +1,3 @@
-"""The shared vocabulary: the teammate taxonomy (embeddings/taxonomy/{skills,jobs}.csv) is the only one.
-
-    load_vocabulary()              -> Vocabulary(entities, skill_aliases, job_aliases)
-    skill_flags(text, aliases)     -> one bool column per skill id (any alias matches)
-    job_of(titles, aliases)        -> one job id per value, NaN where no job alias matches
-
-Entity ids are the taxonomy ids verbatim ('skill:python', 'job:software_engineer'); the prefix gives the kind.
-Aliases per entity are its name and alt_labels (literal, case-insensitive), plus the regex extras in
-src/sources/vocab_extra.json (migrated from the retired legacy lists; see that file's _note).
-
-Matching rules:
-  - Every alias is matched with alphanumeric boundaries, so 'sql' does not match inside 'mysql'.
-  - Skills: a posting can carry several skills; any alias match counts.
-  - Jobs: one job per value. The job whose matching alias is most specific wins (longest alias, after
-    removing regex backslashes); ties go to the earlier row of jobs.csv. A flat taxonomy has no priority
-    order, and a generic extra such as 'developer' must not override the title 'web developer'.
-Unmatched values stay NaN (jobs) or False (skills). There is no 'other' bucket.
-"""
 from __future__ import annotations
 
 import functools
@@ -32,15 +14,15 @@ from src.training import config as C
 EXTRA_PATH = Path(__file__).with_name("vocab_extra.json")
 TAXONOMY_FILES = {"skill": "skills.csv", "job": "jobs.csv"}
 ID_RE = re.compile(r"^(skill|job):[a-z][a-z0-9_]*$")
-_NON_ALNUM = r"[^a-z0-9&]+"  # job text is normalised the way the legacy family matcher normalised it
+_NON_ALNUM = r"[^a-z0-9&]+"
 _BOUNDARY = "(?<![a-z0-9])(?:{})(?![a-z0-9])"
 
 
 @dataclass(frozen=True)
 class Vocabulary:
-    entities: pd.DataFrame        # columns: id, name, kind
-    skill_aliases: dict           # entity id -> list of regex aliases (skill text is lowercased)
-    job_aliases: dict             # entity id -> list of regex aliases (job text is normalised)
+    entities: pd.DataFrame
+    skill_aliases: dict
+    job_aliases: dict
 
     @property
     def names(self) -> dict:
@@ -55,7 +37,6 @@ def _normalise(text: str) -> str:
 
 
 def load_taxonomy(path: Path | None = None) -> pd.DataFrame:
-    """Both taxonomy CSVs stacked, with kind derived from the id prefix. Raises ValueError on any problem."""
     root = Path(path if path is not None else C.TAXONOMY_DIR)
     frames = []
     for kind, fname in TAXONOMY_FILES.items():
@@ -110,14 +91,12 @@ def _cached(taxonomy_dir: str, extra_path: str) -> Vocabulary:
 
 
 def load_vocabulary(path: Path | None = None, extra_path: Path | None = None) -> Vocabulary:
-    """The vocabulary for C.TAXONOMY_DIR (read at call time) and vocab_extra.json."""
     tdir = str(Path(path if path is not None else C.TAXONOMY_DIR))
     epath = str(Path(extra_path if extra_path is not None else EXTRA_PATH))
     return _cached(tdir, epath)
 
 
 def entity_name(entity_id: str) -> str:
-    """Taxonomy name for an id; falls back to the id's own words (for ids outside the taxonomy)."""
     try:
         return load_vocabulary().names.get(entity_id) or entity_id.split(":", 1)[-1].replace("_", " ")
     except (OSError, ValueError):
@@ -125,21 +104,20 @@ def entity_name(entity_id: str) -> str:
 
 
 def _required_literal(alias: str) -> str:
-    """Longest literal prefix that every match of the regex `alias` must start with ('' if none)."""
     out, i = [], 0
     while i < len(alias):
         c = alias[i]
         if c == "\\":
             nxt = alias[i + 1] if i + 1 < len(alias) else ""
-            if nxt in ("b", "B"):  # zero-width assertion: skip
+            if nxt in ("b", "B"):
                 i += 2
                 continue
-            if nxt == "" or nxt.isalnum():  # class or escape such as \d or \s: stop
+            if nxt == "" or nxt.isalnum():
                 break
-            out.append(nxt)  # escaped punctuation such as \. or \# is a literal
+            out.append(nxt)
             i += 2
             continue
-        if c in "?*+{":  # quantifier: applies to the character before it, which is therefore optional
+        if c in "?*+{":
             if out:
                 out.pop()
             break
@@ -159,10 +137,6 @@ def _compile(alias: str) -> re.Pattern:
 
 
 def skill_flags(text: pd.Series, aliases: dict) -> pd.DataFrame:
-    """Boolean frame, one column per skill id. Works on the distinct strings and maps the result back to rows.
-
-    Each alias is first checked for its required literal prefix (a plain substring test), and the regex runs
-    only on the texts that pass. The result equals running every regex on every text."""
     codes, uniques = pd.factorize(text.fillna("").astype(str))
     low = [u.lower() for u in uniques]
     out = {}
@@ -183,9 +157,6 @@ def skill_flags(text: pd.Series, aliases: dict) -> pd.DataFrame:
 
 
 def job_of(values: pd.Series, aliases: dict) -> pd.Series:
-    """One job id per value: the job with the most specific matching alias, ties to the earlier job.
-
-    Works on the distinct normalised strings and maps back. Unmatched values are NaN."""
     s = values.fillna("").astype(str)
     uniq = pd.Series(s.unique(), dtype=object)
     norm = [_normalise(u) for u in uniq]

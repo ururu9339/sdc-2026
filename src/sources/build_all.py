@@ -1,12 +1,3 @@
-"""Build every registered source from its raw_file, validate the outputs and summarise coverage.
-
-    python3 -m src.sources.build_all [--only job_postings,jobstreet_my]
-
-Each registry entry with an `adapter` module is built with `build(raw_file)`, which writes
-data/raw/<source_id>.csv plus its meta sidecar. The summary shows rows, entities and periods per
-source (in each source's own granularity), and how many periods and entities each pair of sources
-shares. Vocabulary collisions between job families and skills are an error.
-"""
 from __future__ import annotations
 
 import argparse
@@ -22,8 +13,6 @@ from src.training import config as C
 
 
 def _overlap(outputs: dict[str, pd.DataFrame], granularity: dict[str, str]) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Periods of row-source a that overlap in time with any period of column-source b, and shared entity ids.
-    Periods are compared as intervals [start, end), because sources have different granularities."""
     ids = list(outputs)
     starts = {k: pd.DatetimeIndex(sorted(set(pd.to_datetime(v["period"])))) for k, v in outputs.items()}
     ends = {k: C.span_end(starts[k], granularity[k]) for k in ids}
@@ -32,7 +21,7 @@ def _overlap(outputs: dict[str, pd.DataFrame], granularity: dict[str, str]) -> t
     e = pd.DataFrame(index=ids, columns=ids, dtype=int)
     for a in ids:
         for b in ids:
-            # a's period overlaps b's when a.start < b.end and b.start < a.end
+
             b_start, b_end = starts[b].to_numpy(), ends[b].to_numpy()
             hit = [(a_s < b_end) & (b_start < a_e) for a_s, a_e in zip(starts[a].to_numpy(), ends[a].to_numpy())]
             m.loc[a, b] = int(sum(bool(h.any()) for h in hit))

@@ -1,4 +1,3 @@
-"""Signal audit, coverage, walk-forward and ablation on tiny hand-written fixtures (not datasets)."""
 import numpy as np
 import pandas as pd
 
@@ -9,8 +8,8 @@ from src.training.backtest import walk_forward
 from src.training.config import GATE_PROFILES
 from src.training.features import build_feature_table, feature_columns
 
-START = "2021-01-04"  # a Monday
-# A small profile for fixtures: same rules as 'demo', just fewer and shorter folds.
+START = "2021-01-04"
+
 SMALL = {**GATE_PROFILES["demo"], "name": "test", "n_folds": 2, "fold_step": 4, "min_train_periods": 4, "min_folds": 1}
 REG = {"sources": [
     {"source_id": "p", "role": "target", "granularity": "weekly", "reliability": 1.0},
@@ -28,8 +27,8 @@ def _series(entity, shares, start=START, n=500, source="p", kind="skill"):
 
 
 def test_audit_flags_noise_and_trend():
-    noise = [0.10, 0.12, 0.09, 0.11] * 4  # flat with +/- wiggle, no direction (16 periods, above the minimum)
-    trend = list(np.linspace(0.05, 0.30, 12))  # steady rise, far beyond sampling noise
+    noise = [0.10, 0.12, 0.09, 0.11] * 4
+    trend = list(np.linspace(0.05, 0.30, 12))
     obs = pd.concat([_series("flat", noise, n=500), _series("rising", trend, n=500)], ignore_index=True)
     audit = signal_audit(obs, REG).set_index("entity_id")
     assert bool(audit.loc["flat", "noise_like"]) is True
@@ -38,12 +37,12 @@ def test_audit_flags_noise_and_trend():
     assert audit.loc["rising", "abs_corr_with_time"] > 0.95
     summary = summarise_audit(signal_audit(obs, REG), REG).set_index("source_id")
     assert summary.loc["p", "entities"] == 2 and summary.loc["p", "share_noise_like"] == 0.5
-    assert summary.loc["p", "periods_span"] == 16  # the longest series (the flat one) sets the span
+    assert summary.loc["p", "periods_span"] == 16
 
 
 def test_audit_ignores_data_after_as_of():
     obs = _series("rising", list(np.linspace(0.05, 0.30, 12)))
-    early = signal_audit(obs, REG, as_of="2021-02-15")  # the 7th week starts on Monday 2021-02-15
+    early = signal_audit(obs, REG, as_of="2021-02-15")
     assert early.loc[0, "n_periods"] == 7 and early.loc[0, "last_period"] == "2021-02-15"
 
 
@@ -75,7 +74,7 @@ def test_ablation_rows_and_no_overlap_status():
         _series("e1", list(base)),
         _series("e2", list(base * 1.1)),
         _series("e1", [0.02] * 60, source="g"),
-        _series("e1", [0.03] * 5, start="2030-01-07", source="j"),  # long after the target ends: no overlap
+        _series("e1", [0.03] * 5, start="2030-01-07", source="j"),
     ], ignore_index=True)
     res = run_ablation(obs, REG, profile=SMALL).set_index("config")
     assert list(res.index) == ["all_sources", "without_g", "without_j", "target_only"]

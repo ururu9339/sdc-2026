@@ -1,5 +1,3 @@
-"""Response models for the CV-to-report endpoint. Every number is copied from the forecast store, the job-skill
-graph or the descriptive snapshot; nothing here is computed by a language model."""
 from __future__ import annotations
 
 from typing import Annotated, Literal, Optional
@@ -23,7 +21,7 @@ class ResolvedSkill(BaseModel):
     skill_id: Optional[str] = None
     name: Optional[str] = None
     status: Literal["matched", "unresolved"]
-    method: str  # taxonomy_id | alias | text_alias | qwen_embedding | none
+    method: str
 
 
 class JobFit(BaseModel):
@@ -32,11 +30,14 @@ class JobFit(BaseModel):
     coverage: float
     matched: list[SkillRef]
     missing: list[SkillRef]
-    growth: Optional[float] = None  # exp(p50) - 1 over the horizon; None when there is no forecast
+    growth: Optional[float] = None
     forecast_status: ForecastStatus
     direction: Optional[Direction] = None
     confidence: Optional[str] = None
     signal_quality: Optional[str] = None
+    as_of: Optional[str] = None
+    target_period: Optional[str] = None
+    shares_signal_with: Optional[str] = None
 
 
 class SkillGap(BaseModel):
@@ -44,7 +45,7 @@ class SkillGap(BaseModel):
     name: str
     score: float
     weight: float
-    share: Optional[float] = None  # postings for the target job that mention the skill / all postings of that job
+    share: Optional[float] = None
     growth: Optional[float] = None
     forecast_status: ForecastStatus
     direction: Optional[Direction] = None
@@ -52,6 +53,9 @@ class SkillGap(BaseModel):
     signal_quality: Optional[str] = None
     for_jobs: list[str]
     stage: str
+    as_of: Optional[str] = None
+    target_period: Optional[str] = None
+    shares_signal_with: Optional[str] = None
     why: str
 
 
@@ -92,6 +96,11 @@ class Report(BaseModel):
     market_snapshot: list[MarketItem] = Field(default_factory=list)
     caveats: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    forecast_as_of: Optional[str] = None
+    forecast_target_period: Optional[str] = None
+    data_age_days: Optional[int] = None
+    stale: Optional[bool] = None
+    forecast_window: Optional[str] = None
 
 
 class ReportRequest(BaseModel):
@@ -108,7 +117,6 @@ class TaxonomyEntry(BaseModel):
 
 
 class TaxonomyPage(BaseModel):
-    """One page of the taxonomy. count = items on this page, total = all entries matching q."""
     kind: Literal["skill", "job"]
     count: int
     total: int

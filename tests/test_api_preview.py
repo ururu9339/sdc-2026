@@ -1,5 +1,3 @@
-"""API: the preview feed (unvalidated, banner, validated: false) and the descriptive /snapshot.
-Fixtures are hand-written and live in tmp_path (see conftest.py)."""
 import pandas as pd
 from fastapi.testclient import TestClient
 
@@ -10,10 +8,9 @@ from tests.conftest import PREVIEW_REASON, build_env
 
 client = TestClient(app)
 BANNER = ("PREVIEW: unvalidated candidate forecasts; the model did not pass the validation gate "
-          f"({PREVIEW_REASON}). Not for decisions.")
+          f"({PREVIEW_REASON}). Forecast made as of 2026-09-14 for 2026-12-07. Not for decisions.")
 
 
-# ---- preview feed ------------------------------------------------------------------------------
 def test_forecast_list_is_preview_when_no_model_is_live(preview_env):
     body = client.get("/forecast").json()
     assert body["status"] == "preview" and body["feed"] == "preview" and body["validated"] is False
@@ -61,8 +58,8 @@ def test_explain_noise_caveat_survives_in_preview(preview_env):
 def test_explain_name_comes_from_the_taxonomy(preview_env):
     body = client.get("/explain/skill:python").json()
     assert body["summary"].startswith(BANNER)
-    assert "Python" in body["summary"]  # taxonomy name, not the raw id
-    assert body["status"] == "insufficient_data"  # no preview record for this skill in the fixture
+    assert "Python" in body["summary"]
+    assert body["status"] == "insufficient_data"
 
 
 def test_no_model_no_preview_is_feed_none(no_model_env):
@@ -91,20 +88,17 @@ def test_live_model_wins_over_stale_preview_records(tmp_path, monkeypatch):
     assert not explain["summary"].startswith("PREVIEW")
 
 
-# ---- snapshot (descriptive, not a forecast) -----------------------------------------------------
 def _write_raw(tmp_path, monkeypatch, rows):
-    """Long-format raw files, one per source, read by the loaders (the snapshot reads sources, not the store)."""
     raw = tmp_path / "raw"
     raw.mkdir(exist_ok=True)
     monkeypatch.setattr(C, "RAW_DIR", raw)
-    monkeypatch.setattr(C, "SNAPSHOT_MIN_BLOCK_PERIODS", 2)  # fixtures use 2-3 period blocks
+    monkeypatch.setattr(C, "SNAPSHOT_MIN_BLOCK_PERIODS", 2)
     df = pd.DataFrame(rows, columns=COLUMNS)
     for sid, part in df.groupby("source_id"):
         part.to_csv(raw / f"{sid}.csv", index=False)
 
 
 def _listing_rows():
-    """jobstreet_my (tier 1): three weeks, a two-week gap, then two weeks. Values are shares."""
     first = ["2024-01-01", "2024-01-08", "2024-01-15"]
     last = ["2024-03-04", "2024-03-11"]
     rows = []
@@ -113,7 +107,7 @@ def _listing_rows():
             rows.append([ent, kind, d, "jobstreet_my", v, 10])
         for d, v in zip(last, [0.5 if kind == "skill" else 0.01, 0.6 if kind == "skill" else 0.01]):
             rows.append([ent, kind, d, "jobstreet_my", v, 20])
-    rows.append(["job:accountant", "job", "2024-01-01", "job_postings", 0.5, 100])  # target, not a leading source
+    rows.append(["job:accountant", "job", "2024-01-01", "job_postings", 0.5, 100])
     return rows
 
 
@@ -122,7 +116,7 @@ def test_snapshot_uses_the_best_tier_leading_source_with_data(preview_env, tmp_p
     body = client.get("/snapshot").json()
     assert body["status"] == "ok" and body["type"] == "descriptive_not_forecast"
     assert body["banner"].startswith("DESCRIPTIVE SNAPSHOT, NOT A FORECAST")
-    assert [s["source_id"] for s in body["sources"]] == ["jobstreet_my"]  # tier 1 beats tier 3 market_signal
+    assert [s["source_id"] for s in body["sources"]] == ["jobstreet_my"]
     assert {i["type"] for i in body["items"]} == {"descriptive_not_forecast"}
     py = next(i for i in body["items"] if i["entity_id"] == "skill:python")
     assert py["name"] == "Python" and py["kind"] == "skill"
@@ -143,14 +137,14 @@ def test_snapshot_kind_filter_and_limit(preview_env, tmp_path, monkeypatch):
 
 def test_snapshot_ignores_blocks_shorter_than_the_minimum(preview_env, tmp_path, monkeypatch):
     _write_raw(tmp_path, monkeypatch, _listing_rows())
-    monkeypatch.setattr(C, "SNAPSHOT_MIN_BLOCK_PERIODS", 4)  # both fixture blocks are shorter than this
+    monkeypatch.setattr(C, "SNAPSHOT_MIN_BLOCK_PERIODS", 4)
     body = client.get("/snapshot").json()
     assert body["status"] == "no_data" and body["items"] == []
     assert "at least 4 periods" in body["reason"]
 
 
 def test_snapshot_single_block_is_explained_not_faked(preview_env, tmp_path, monkeypatch):
-    rows = [r for r in _listing_rows() if r[3] == "jobstreet_my" and r[2] < "2024-02"]  # only the first block
+    rows = [r for r in _listing_rows() if r[3] == "jobstreet_my" and r[2] < "2024-02"]
     _write_raw(tmp_path, monkeypatch, rows)
     body = client.get("/snapshot").json()
     assert body["status"] == "no_data" and body["items"] == []
