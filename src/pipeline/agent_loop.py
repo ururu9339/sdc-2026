@@ -1,21 +1,3 @@
-"""Perceive -> decide -> act -> log.
-
-    python3 -m src.pipeline.agent_loop run [--as-of YYYY-MM-DD]
-    python3 -m src.pipeline.agent_loop replay --start YYYY-MM-DD --end YYYY-MM-DD [--step N]
-    python3 -m src.pipeline.agent_loop status
-
-perceive: pull new rows from every enabled source into the accumulating table, check source health.
-decide:   retrain if there is new data, no live model, or live accuracy has drifted below baseline.
-act:      refit on the FULL table, walk-forward backtest, fixed gate (active profile); promote only if it
-          passes. Then forecast with the live model (abstaining on thin series) and reconcile matured
-          forecasts.
-log:      append-only forecast log, outcome log and run log.
-preview:  while NO validated live model exists, a gate-rejected candidate is still fitted on the full usable
-          table and its forecasts go to a SEPARATE preview log (validated: false, feed: "preview"), scored
-          in a separate preview outcome log. The live pointer stays null; live logs are never written here.
-`replay` re-runs the loop as if each period were 'today' (loaders are sliced to as_of), so continuous
-retraining can be demonstrated on the real data. Dates may be any day; they are snapped to the period.
-"""
 from __future__ import annotations
 
 import argparse
@@ -27,7 +9,8 @@ import pandas as pd
 from src.pipeline.store import AppendOnlyLog, ObservationStore, load_json, save_json
 from src.sources.loaders import get_loader
 from src.training import config as C
-from src.training.audit import records, signal_audit, source_coverage, summarise_audit
+from src.training.audit import (duplicate_groups, duplicate_summary, records, signal_audit, source_coverage,
+                                summarise_audit)
 from src.training.backtest import evaluate_gate, walk_forward
 from src.training.features import build_feature_table, column_source_map, feature_columns, usable
 from src.training.forecast import make_forecasts
@@ -44,7 +27,7 @@ class AgentLoop:
         self.preview_outcome_log = AppendOnlyLog(C.PREVIEW_OUTCOME_LOG_PATH)
         self.run_log = AppendOnlyLog(C.RUN_LOG_PATH)
 
-    # ---- perceive ----------------------------------------------------------------------
+
     def perceive(self, as_of: pd.Timestamp | None) -> dict:
         added = {}
         for src in C.enabled_sources(self.registry):
@@ -74,11 +57,11 @@ class AgentLoop:
             weights[sid] = src["reliability"]
         return {"ok": True, "as_of": as_of, "added": added, "health": health, "active": active, "weights": weights}
 
-    # ---- decide ------------------------------------------------------------------------
+
     def decide(self, as_of: pd.Timestamp, state: dict, vlog: dict, drift: dict) -> tuple[bool, str]:
         if not vlog.get("live"):
-            # A preview model fitted for this same as_of is reused. Refitting would mint a new preview version
-            # and re-issue forecasts for the same origin, duplicating records on a second run.
+
+
             if vlog.get("preview") and state.get("last_trained_as_of") == C.period_label(as_of):
                 return False, "preview model already fitted for this as_of"
             return True, "no live model"
@@ -89,8 +72,9 @@ class AgentLoop:
             return True, f"drift: {drift['reason']}"
         return False, "model is current"
 
-    # ---- act ---------------------------------------------------------------------------
-    def retrain(self, feats: pd.DataFrame, as_of: pd.Timestamp, vlog: dict, active: set, audit: list[dict]) -> dict:
+
+    def retrain(self, feats: pd.DataFrame, as_of: pd.Timestamp, vlog: dict, active: set, audit: list[dict],
+                duplicates: list[dict] | None = None) -> dict:
         cols = feature_columns(feats)
         profile = C.active_gate_profile()
         folds, _ = walk_forward(feats, cols, profile=profile)
@@ -99,7 +83,8 @@ class AgentLoop:
         entry = {"created_at": datetime.now(timezone.utc).isoformat(), "as_of": C.period_label(as_of),
                  "gate_profile": gate["profile"], "gate": gate,
                  "folds": folds.to_dict("records") if not folds.empty else [],
-                 "sources_used": sorted(active), "audit": audit, "version": None, "status": "rejected"}
+                 "sources_used": sorted(active), "audit": audit, "version": None, "status": "rejected",
+                 "duplicates": duplicate_summary(duplicates or [])}
         train = usable(feats)
         train = train[train["y"].notna()]
         if gate["passed"]:
@@ -124,7 +109,6 @@ class AgentLoop:
         return {k: float(v) for k, v in imp.items()}
 
     def _fit_preview(self, train: pd.DataFrame, cols: list[str], as_of: pd.Timestamp, gate: dict, vlog: dict) -> dict:
-        """Fit the rejected candidate for the preview feed. Stored apart from the live models; never promoted."""
         if train.empty:
             return {"status": "rejected_preview", "preview_version": None, "preview_reason": "no usable training rows"}
         n_prev = sum(1 for h in vlog["history"] if h.get("preview_version"))
@@ -141,8 +125,6 @@ class AgentLoop:
                 "source_importance": self._importance(models, train, cols)}
 
     def reconcile(self, feats: pd.DataFrame, as_of: pd.Timestamp, feed: str = "live") -> list[dict]:
-        """Score matured forecasts against what actually happened. Appends; never edits the forecast log.
-        Preview forecasts are scored into their own outcome log, so live statistics never mix with them."""
         preview = feed == "preview"
         fc_log = self.preview_log if preview else self.forecast_log
         oc_log = self.preview_outcome_log if preview else self.outcome_log
@@ -150,7 +132,9 @@ class AgentLoop:
         actual = feats.set_index(["entity_id", "period"])["lvl"]
         out = []
         for rec in fc_log.read():
-            if rec.get("status") != "ok" or rec["forecast_id"] in done:
+
+
+            if rec.get("status") != "ok" or rec["forecast_id"] in done or rec.get("shares_signal_with"):
                 continue
             target = C.parse_period_label(rec["target_period"])
             if target > as_of:
@@ -179,9 +163,9 @@ class AgentLoop:
             np.mean([r["abs_err_persistence"] for r in recent]), np.mean([r["abs_err_trend"] for r in recent]))
         return {"drifted": bool(m > C.DRIFT["tolerance"] * b), "reason": f"live MAE {m:.3f} vs baseline {b:.3f}"}
 
-    # ---- one pass ----------------------------------------------------------------------
+
     def run_once(self, as_of: str | pd.Timestamp | None = None) -> dict:
-        # The origin is a period start. Snapping before loading keeps a partly-elapsed week out of the table.
+
         as_of = C.to_period_start(pd.Timestamp(as_of)) if as_of is not None else None
         p = self.perceive(as_of)
         run = {"run_at": datetime.now(timezone.utc).isoformat(), "added_rows": p["added"]}
@@ -195,9 +179,11 @@ class AgentLoop:
         vlog = load_json(C.VERSION_LOG_PATH, {"live": None, "history": []})
         obs = self.store.load()
         tgt = C.target_source(self.registry)
-        audit = signal_audit(obs, self.registry, as_of)  # causal: only figures known at as_of
+        audit = signal_audit(obs, self.registry, as_of)
         target_audit = audit[audit["source_id"] == tgt].set_index("entity_id")
         run["source_coverage"] = records(source_coverage(obs, self.registry, as_of))
+        groups = duplicate_groups(obs, self.registry, as_of)
+        run["duplicates"] = duplicate_summary(groups, n_entities=int(len(target_audit)))
         feats = build_feature_table(obs, self.registry, as_of, weights=p["weights"], active=p["active"])
 
         matured = self.reconcile(feats, as_of)
@@ -206,23 +192,23 @@ class AgentLoop:
         retrain, why = self.decide(as_of, state, vlog, self.drift_check())
         run["decision"] = {"retrain": retrain, "why": why}
         if retrain:
-            entry = self.retrain(feats, as_of, vlog, p["active"], records(summarise_audit(audit, self.registry)))
+            entry = self.retrain(feats, as_of, vlog, p["active"], records(summarise_audit(audit, self.registry)),
+                                 duplicates=groups)
             run["retrain"] = {"status": entry["status"], "version": entry["version"],
                               "preview_version": entry.get("preview_version"), "gate": entry["gate"],
                               "gate_profile": entry["gate_profile"]}
             state["last_trained_as_of"] = C.period_label(as_of)
             save_json(C.STATE_PATH, state)
         if vlog.get("live"):
-            return self._issue(run, "live", f"forecaster_{vlog['live']}", as_of, feats, target_audit)
+            return self._issue(run, "live", f"forecaster_{vlog['live']}", as_of, feats, target_audit, groups)
         if C.PREVIEW_ENABLED and vlog.get("preview"):
-            return self._issue(run, "preview", vlog["preview"], as_of, feats, target_audit)
+            return self._issue(run, "preview", vlog["preview"], as_of, feats, target_audit, groups)
         run.update(status="no_live_model", feed="none", reason="gate not passed yet; no forecasts issued")
         self.run_log.append_many([run])
         return run
 
     def _issue(self, run: dict, feed: str, model_dir: str, as_of: pd.Timestamp, feats: pd.DataFrame,
-               target_audit: pd.DataFrame) -> dict:
-        """Forecast with a stored model into the log of its feed. Abstention and signal rules are identical."""
+               target_audit: pd.DataFrame, duplicates: list[dict] | None = None) -> dict:
         models, meta = load_models(C.MODELS_DIR / model_dir)
         missing = set(meta["feature_columns"]) - set(feats.columns)
         if missing:
@@ -232,7 +218,8 @@ class AgentLoop:
         preview = feed == "preview"
         log = self.preview_log if preview else self.forecast_log
         existing = {r["forecast_id"] for r in log.read()}
-        fc = [f for f in make_forecasts(models, meta, feats, as_of, self.registry, audit=target_audit)
+        fc = [f for f in make_forecasts(models, meta, feats, as_of, self.registry, audit=target_audit,
+                                        duplicates=duplicates)
               if f["forecast_id"] not in existing]
         if preview:
             for f in fc:

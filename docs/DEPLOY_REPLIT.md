@@ -113,3 +113,19 @@ present in the deployment, which is not expected: the folder is gitignored.
 - The Qwen/pgvector path needs `DATABASE_URL`, Postgres with pgvector, psycopg and Ollama. It is not verified here; the
   offline matcher is what the bundle deployment runs.
 - The OCR path (`POST /api/v1/candidates/pdf`) needs Tesseract on the server; without it the route returns 503.
+
+## 8. Hand-off to the embeddings matcher
+
+`python3 -m src.pipeline.export_forecasts --feed preview --csv rows.csv` (or `refresh`, which writes
+`data/handoff/entity_forecast_<feed>.csv`) produces rows for the `entity_forecast` table. Copies for the repo are in
+`handoff/`.
+
+- `entity_id` is a taxonomy id (`skill:python`, `job:accountant`); ids outside the taxonomy are skipped.
+- `horizon_months` is 3 (our 12-week horizon). Call the matcher with `--horizon 3`.
+- `growth` is `exp(p50) - 1`, the forecast relative change in the smoothed share of postings.
+- `model_version` is `vN` for a validated model and `preview:vN` for an unvalidated preview.
+- The matcher takes the newest row per entity regardless of version, so preview and live rows must not share a
+  database. The exporter refuses `--feed preview` while a live model exists. Suggested schema fix: a
+  `validated BOOLEAN` column on `entity_forecast`, filtered in `forecasts()`.
+- Load the CSV with `\copy entity_forecast(entity_id,horizon_months,growth,model_version,created_at) FROM 'file.csv' CSV HEADER`.
+

@@ -145,4 +145,68 @@ Rebuilt with `python3 -m src.sources.build_all`:
 
 **Tests.** 116 pass (`python3 -m pytest tests`). A bare `python3 -m pytest` also collects a vendored benchmark under `src/data/job_sdf/benchmark` and errors on collection. That predates this work.
 
-**Not verified.** Writing to a real Postgres (see `docs/INTEGRATION.md`); `embeddings/match.py` run against our rows.
+**Not verified.** Writing to a real Postgres (see `docs/DEPLOY_REPLIT.md`); `embeddings/match.py` run against our rows.
+
+## 11. Duplicate series, staleness and retraining
+
+Added after section 10. Sections 1 to 10 are unchanged; where a figure here differs from an earlier one, both are given.
+
+**What changed.**
+- *Duplicate series.* 16 target entities (of 123) have a posting-share series identical, to 1e-6 relative, to another entity's on every one of the 105 weeks. They form six groups (the canonical member is the smallest id). Only canonical members enter training and walk-forward folds (113 series). Every entity is still forecast: non-canonical members copy the canonical numbers, with confidence `low`, `shares_signal_with`, `duplicate_group` and a caveat. Rule and thresholds: `config.DEDUP` (`rel_tol` 1e-6, `min_periods` 13) and `audit.duplicate_groups`.
+- *Staleness.* Forecast age is computed when a response is served (today in UTC minus `as_of`); nothing about age is stored. `stale` is true above `config.STALE_DAYS` (60). The preview banner carries the as-of and target dates and, when stale, `Data is N days old.`
+- *Retraining.* Full rebuild from the raw files: `build_all`, `training.report`, `agent_loop replay --start 2022-06-13 --end 2023-09-11 --step 4`, `refresh`. The previous runtime state is in `data/archive_pre_dedup/` (moved, not deleted).
+
+**The six groups** (kinds in brackets; `job:` ids are job families):
+
+| Canonical (used in training) | Copies (forecast from the canonical) | Shared periods |
+|---|---|---|
+| `job:devops_engineer` | `skill:gcp`, `skill:infra_as_code`, `skill:linux` | 105 |
+| `job:mobile_developer` | `skill:kotlin`, `skill:mobile_dev`, `skill:swift` | 105 |
+| `job:web_developer` | `skill:vue` | 105 |
+| `skill:aws` | `skill:azure` | 105 |
+| `skill:deep_learning` | `skill:machine_learning` | 105 |
+| `skill:docker` | `skill:kubernetes` | 105 |
+
+The brief named five skill-only groups (12 entities). Three of the six groups also contain a job family whose target share series is identical to those skills. The brief's rule ("identical share series, any entity") includes them, so they are collapsed too. Under the canonical-by-smallest-id rule a job id sorts before a skill id, so in those three groups the job family is the modelled series and its leading-source features (market signal) are used. This is a judgement call; a same-kind-only rule would keep those three job families as separate series. Decide before relying on these groups.
+
+**Posting-level exact duplicates** (measured on all 1,615,940 rows of the raw file; nothing removed; totals unchanged):
+- Same Job Title, Role, skills, Company and Job Posting Date as an earlier row: 6,681 rows, **0.41%**.
+- Identical in every column except Job Id: **0 rows (0.00%)**. The 6,681 key repeats differ in other fields (for example Experience, Salary Range, Contact), so they are not copies of one posting.
+- Recorded in `data/raw/job_postings.meta.json` under `posting_duplicates`.
+
+**Before and after.** BEFORE is the archived run (`data/archive_pre_dedup/`). AFTER is this run (replay of 17 weekly/4-weekly origins plus the refresh at 2023-09-11).
+
+| Measure | Before | After |
+|---|---|---|
+| Target series in the observation store | 123 | 123 (unchanged; the store keeps every entity) |
+| Series modelled (training and folds) | 123 | **113** (10 non-canonical dropped) |
+| Training rows, final model | 9,717 | 8,927 |
+| Walk-forward test rows per fold | 1,599 | 1,469 |
+| Gate verdict (demo profile) | REJECTED | **REJECTED** (same reason) |
+| Gate reason | failed: beats_baseline, fold_win_rate | failed: beats_baseline, fold_win_rate |
+| Model MAE, weighted over folds | 0.03625 | 0.03393 |
+| Best baseline (mean reversion) MAE | 0.03492 | 0.03271 |
+| Model vs best baseline | 3.8% worse | 3.7% worse |
+| Folds where model beat baseline | 0 of 3 | 0 of 3 |
+| Fold MAE, model / mean reversion (fold 0, 1, 2) | 0.0361 / 0.0341, 0.0332 / 0.0323, 0.0394 / 0.0383 | 0.0343 / 0.0329, 0.0304 / 0.0294, 0.0370 / 0.0359 |
+| Direction accuracy (weighted) | 0.7307 | 0.7313 |
+| 10-90% interval coverage in folds | 0.756 | 0.758 |
+| Forecasts issued in newest run | 123, all ok | 123, all ok: 113 modelled + 10 copies |
+| Direction, newest run, modelled series | stable 114, declining 6, emerging 3 (123 series) | stable 107, declining 3, emerging 3 (113 series); copies: stable 7, declining 3 |
+| Signal quality, newest run | noise_like 123 of 123 | noise_like 123 of 123 |
+| Entities in duplicate groups | not flagged | 16 in 6 groups; 10 collapsed |
+| Sign flips, previous vs newest preview (2023-09-04 to 2023-09-11) | 35 of 123 | 29 of 113 modelled (32 of 123 if copies are counted) |
+| Matured preview outcomes | 1,722 (123 series) | 1,582 (113 series) |
+| Outcome MAE: model / persistence / trend | 0.0375 / 0.0483 / 0.0605 (123 series) | 0.0349 / 0.0450 / 0.0569 (113 series) |
+| Same 113 series, before the change | 0.0350 / 0.0450 / 0.0569 | (as above) |
+| Outcome interval coverage | 0.717 | 0.719 |
+| Versions attempted (all rejected; preview only) | 18 | 18 |
+| Serving bundle total bytes | 1,798,025 | 1,802,320 (1.7 MiB, limit 5 MiB) |
+
+The drop in outcome MAE from 0.0375 to 0.0349 is from removing the copies, not from better forecasts: restricted to the same 113 series, the earlier run scores 0.0350.
+
+**Verdict.** The gate is still rejected, for the same reasons, and it has not been loosened or tuned. Counting each duplicated series once changes the picture only slightly: the model is still about 3.7% worse than mean reversion and beats it in no fold. Duplicate series were not what kept the model from passing. The preview feed is still the only feed; every forecast is labelled `validated: false`.
+
+**Staleness.** The data ends at 2023-09-11, so every forecast is 1,139 days old on 2026-10-24 (the serving date used here). The API now says so in the banner, in `data_age_days`, `stale` and `forecast_window`, and in `/health`. The forecasts are still served because no fresh data exists in this repository; they should not be read as current.
+
+**Not verified.** The embeddings team's Postgres load and `match.py` against the new `entity_forecast` rows; the frontend's rendering of the new fields; a full `pytest` run on a machine where `data/` is absent (the layout-dependent tests depend on the local logs).

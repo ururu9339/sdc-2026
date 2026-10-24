@@ -1,7 +1,3 @@
-"""Ablation: run the same walk-forward gate with each leading source left out, and with the target alone.
-
-Leading sources that have no periods overlapping the target are reported as status 'no_overlap' and
-not run, so they cannot silently pass or fail the comparison."""
 from __future__ import annotations
 
 import pandas as pd
@@ -15,7 +11,7 @@ from src.training.features import build_feature_table, feature_columns
 def run_ablation(obs: pd.DataFrame, registry: dict, as_of=None, profile: dict | None = None) -> pd.DataFrame:
     tgt = target_source(registry)
     cov = source_coverage(obs, registry, as_of)
-    if as_of is None:  # default: the target's last period, same as the agent loop
+    if as_of is None:
         as_of = cov.loc[cov["source_id"] == tgt, "last_period"].iloc[0]
     as_of = pd.Timestamp(as_of)
     cov = source_coverage(obs, registry, as_of).set_index("source_id")

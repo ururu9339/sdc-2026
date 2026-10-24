@@ -1,4 +1,3 @@
-"""Period helpers and gate profiles on hand-written inputs (fixtures, not datasets)."""
 import pandas as pd
 
 from src.training import config as C
@@ -6,8 +5,8 @@ from src.training.backtest import evaluate_gate
 
 
 def test_weekly_period_helpers():
-    assert C.to_period_start("2024-01-03") == pd.Timestamp("2024-01-01")  # Wednesday -> its Monday
-    assert C.to_period_start("2024-01-07") == pd.Timestamp("2024-01-01")  # Sunday is still that week
+    assert C.to_period_start("2024-01-03") == pd.Timestamp("2024-01-01")
+    assert C.to_period_start("2024-01-07") == pd.Timestamp("2024-01-01")
     assert C.shift_periods("2024-01-03", 2) == pd.Timestamp("2024-01-15")
     assert C.shift_periods("2024-01-03", -1) == pd.Timestamp("2023-12-25")
     assert C.periods_between("2024-01-01", "2024-03-04") == 9
@@ -42,14 +41,14 @@ def _folds(model, base, coverage):
 
 
 def test_same_candidate_passes_demo_and_fails_production():
-    # Model equals the best baseline on average, wins 2 of 3 folds, and covers 60% of outcomes.
+
     folds = _folds(model=[0.9, 0.9, 1.2], base=[1.0, 1.0, 1.0], coverage=[0.6, 0.6, 0.6])
     demo = evaluate_gate(folds, C.GATE_PROFILES["demo"])
     prod = evaluate_gate(folds, C.GATE_PROFILES["production"])
     assert demo["profile"] == "demo" and demo["passed"] is True
     assert prod["profile"] == "production" and prod["passed"] is False
     assert prod["constraints"]["mae_margin"] == 0.03 and demo["constraints"]["mae_margin"] == 0.0
-    # 2 of 3 folds win (meets 0.6), but the margin and the coverage band fail under production
+
     assert prod["checks"] == {"beats_baseline": False, "fold_win_rate": True, "calibrated": False}
 
 

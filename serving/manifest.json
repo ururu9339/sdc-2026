@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-24T18:20:19.728455+00:00",
+  "generated_at": "2026-10-24T19:37:26.605221+00:00",
   "as_of": "2023-09-11",
   "feed": "preview",
   "model_version": "preview:v18",
@@ -20,10 +20,10 @@
   "outcomes": {
     "feed": "preview",
     "validated": false,
-    "matured": 1722,
-    "live_mae": 0.03745430625495533,
-    "persistence_mae": 0.04825328024651534,
-    "interval_coverage": 0.7166085946573751
+    "matured": 1582,
+    "live_mae": 0.03493217793462013,
+    "persistence_mae": 0.04496782502906643,
+    "interval_coverage": 0.7187104930467763
   },
   "observation_sources": [
     "job_postings",
@@ -33,18 +33,18 @@
   "files": [
     {
       "path": "model_report.json",
-      "bytes": 6711,
-      "sha256": "362a2b47a8266862648ed4d9e5e59843e4b6f591996e1f4b4e3af618793e41e8"
+      "bytes": 9180,
+      "sha256": "025c4ba5440ef0d0dbe3dee80a4c396e46f275838469fe42f54c446b7c0ba70d"
     },
     {
       "path": "models/version_log.json",
-      "bytes": 15632,
-      "sha256": "87955e4a16baa9cce371ce2796ccec4d0c382665d950967c472d6118676933c7"
+      "bytes": 16225,
+      "sha256": "88e1737d1473e8a5e9abe8159c17601f5460a6cdddf01673b2e23ff785d1a522"
     },
     {
       "path": "preview_log.jsonl",
-      "bytes": 170850,
-      "sha256": "18d547dfa2d28a524710996b0187d398da2b7d66fd3d8973b528ce5a989cf76b"
+      "bytes": 172083,
+      "sha256": "5f63467b5ff3ee41802f534067865cb9d1038f7e9f55ff3fbc06a9550d9a5c5f"
     },
     {
       "path": "processed/job_skill_graph.csv",
@@ -62,7 +62,7 @@
       "sha256": "509624cec2d8334a7249368bfb2ff14d1c72b5d863ab76650763addc75d332ba"
     }
   ],
-  "total_bytes": 1798025,
+  "total_bytes": 1802320,
   "max_total_bytes": 5242880,
   "note": "snapshot for serving: the files the API reads, written by src.pipeline.refresh from the local data/ folder. Not a full copy of the data and not a re-computation; regenerate it to refresh."
 }

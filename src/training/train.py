@@ -1,4 +1,3 @@
-"""One global LightGBM model: a point model plus 10% / 90% quantile models for the interval."""
 from __future__ import annotations
 
 import json
@@ -27,7 +26,6 @@ def predict(models: dict[str, lgb.Booster], X: pd.DataFrame) -> pd.DataFrame:
 
 
 def source_contributions(models: dict[str, lgb.Booster], X: pd.DataFrame, col_source: dict[str, str]) -> pd.DataFrame:
-    """SHAP contribution of each source's columns to the point forecast (log-growth units)."""
     contrib = models["point"].predict(X, pred_contrib=True)[:, :-1]
     df = pd.DataFrame(contrib, index=X.index, columns=list(X.columns))
     return df.T.groupby(col_source).sum().T

@@ -1,13 +1,3 @@
-"""Feature table: one row per (entity, weekly origin), built only from data known at that origin.
-
-Each source is normalised within its own history (expanding z-score, growth rates) before being
-combined. Leading sources get lagged columns so the model can learn the lead time. Postings (the
-target series) and leading sources are measured independently per entity.
-
-Time alignment (the only place it is decided): an origin week w is "now" at the end of week w. A
-figure for period p with native span s and publication lag L becomes usable at the first origin week
-whose end is at or after p + s + L. Once usable it is carried forward for ffill_limit_days.
-"""
 from __future__ import annotations
 
 import numpy as np
@@ -43,7 +33,7 @@ def _entity_frame(g: pd.DataFrame, sup: pd.Series, periods: pd.DatetimeIndex, tg
     f["accel"] = f[f"g{MID}"] - f[f"g{MID}_l{MID}"]
     f[f"vol{VOL_WINDOW}"] = lvl.diff().rolling(VOL_WINDOW, min_periods=2 * VOL_WINDOW // 3).std()
     f["z"] = _zscore(lvl)
-    f["lvl_dev"] = lvl - lvl.expanding(MIN_HISTORY).mean()  # distance from own long-run mean (causal)
+    f["lvl_dev"] = lvl - lvl.expanding(MIN_HISTORY).mean()
     f["n_obs"] = post.notna().cumsum()
     f[f"support_mean{SUPPORT_WINDOW}"] = sup.reindex(periods).rolling(SUPPORT_WINDOW, min_periods=1).mean()
     f["y"] = lvl.shift(-horizon) - lvl
@@ -72,12 +62,6 @@ def _entity_frame(g: pd.DataFrame, sup: pd.Series, periods: pd.DatetimeIndex, tg
 
 
 def first_visible_period(starts: pd.Series, granularity: str, lag_days: int = 0) -> pd.Series:
-    """First origin period (model grid: week or month start) at which each figure is known.
-
-    starts: native period starts (e.g. month starts for a monthly source). A figure is known at
-    span_end(start) + lag. An origin period p ends at the start of p + 1, so the first usable origin is
-    the smallest p with end(p) >= known_at: p - 1 when known_at is exactly the start of p, else p.
-    """
     known_at = pd.Series(span_end(starts, granularity), index=starts.index) + pd.Timedelta(days=lag_days)
     grid = pd.PeriodIndex(pd.DatetimeIndex(known_at), freq=PERIOD_FREQ)
     exact = grid.start_time == pd.DatetimeIndex(known_at)
@@ -86,8 +70,6 @@ def first_visible_period(starts: pd.Series, granularity: str, lag_days: int = 0)
 
 
 def shift_to_publication(obs: pd.DataFrame, registry: dict) -> pd.DataFrame:
-    """Copy of obs with `period` replaced by the first origin week at which each figure is known.
-    The native period start is kept in `source_period`. Forward-filling is applied later, in features."""
     obs = obs.copy()
     obs["source_period"] = pd.to_datetime(obs["period"])
     if obs.empty:
@@ -100,10 +82,15 @@ def shift_to_publication(obs: pd.DataFrame, registry: dict) -> pd.DataFrame:
 
 
 def build_feature_table(obs: pd.DataFrame, registry: dict, as_of=None, horizon: int = HORIZON,
-                        weights: dict | None = None, active: set | None = None) -> pd.DataFrame:
+                        weights: dict | None = None, active: set | None = None, dedup: bool = True) -> pd.DataFrame:
+    raw_obs = obs
     obs = shift_to_publication(obs, registry)
     as_of = to_period_start(pd.Timestamp(as_of)) if as_of is not None else obs["period"].max()
     obs = obs[obs["period"] <= as_of]
+    exclude: set[str] = set()
+    if dedup:
+        from src.training.audit import duplicate_groups, non_canonical_ids
+        exclude = non_canonical_ids(duplicate_groups(raw_obs, registry, as_of))
     tgt = target_source(registry)
     present = set(obs["source_id"])
     leads = []
@@ -122,7 +109,7 @@ def build_feature_table(obs: pd.DataFrame, registry: dict, as_of=None, horizon: 
     globals_ = wide.xs(GLOBAL_ID, level=0) if GLOBAL_ID in wide.index.get_level_values(0) else None
     frames = []
     for ent, g in wide.groupby(level=0):
-        if ent == GLOBAL_ID:
+        if ent == GLOBAL_ID or ent in exclude:
             continue
         if tgt not in g or g[tgt].notna().sum() == 0:
             continue
@@ -141,7 +128,6 @@ def build_feature_table(obs: pd.DataFrame, registry: dict, as_of=None, horizon: 
 
 
 def usable(df: pd.DataFrame) -> pd.DataFrame:
-    """Rows with enough own history to be scored/trained on."""
     return df[(df["n_obs"] >= MIN_HISTORY) & df["lvl"].notna() & df[f"g{MID}"].notna()]
 
 
@@ -150,7 +136,6 @@ def feature_columns(df: pd.DataFrame) -> list[str]:
 
 
 def column_source_map(cols: list[str], registry: dict) -> dict[str, str]:
-    """Group feature columns by the source they come from (for contribution reporting)."""
     tgt = target_source(registry)
     lead_ids = [s["source_id"] for s in registry["sources"] if s["role"] == "leading"]
     out = {}

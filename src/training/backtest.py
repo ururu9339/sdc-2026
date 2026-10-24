@@ -1,8 +1,3 @@
-"""Walk-forward validation and the promotion gate.
-
-The gate is fixed and simple: the candidate must beat the best naive baseline on time-ordered
-held-out folds, under the constraints of a gate profile (config.GATE_PROFILES). The profile only
-changes the numeric constraints, never the rule. The model never influences its own gate."""
 from __future__ import annotations
 
 import numpy as np
@@ -15,8 +10,6 @@ from src.training.train import fit_models, predict
 
 
 def walk_forward(df: pd.DataFrame, cols: list[str], horizon: int = HORIZON, profile: dict | None = None):
-    """Returns (per-fold metrics, per-row predictions). Train rows must have their target known
-    by the fold's information cutoff, so nothing from the test period leaks into training."""
     p = profile or active_gate_profile()
     rows = usable(df)
     labelled = rows[rows["y"].notna()]

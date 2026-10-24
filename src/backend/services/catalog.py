@@ -1,13 +1,9 @@
-"""Paged, searchable access to the taxonomy vocabulary (skills and jobs). Read-only; ids and names come from
-the teammate taxonomy files, never from a model."""
 from __future__ import annotations
 
 from src.sources import taxonomy as T
 
 
 def list_taxonomy(kind: str, q: str | None = None, offset: int = 0, limit: int = 500) -> dict:
-    """Entries of one kind, A to Z by name, filtered by a case-insensitive match on id, name or an alternative
-    label. Returns the page plus the total number of matches."""
     tax = T.load_taxonomy()
     rows = tax[tax["kind"] == kind]
     needle = (q or "").strip().lower()

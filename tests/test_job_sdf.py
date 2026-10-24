@@ -1,7 +1,3 @@
-"""Job-SDF adapter on a tiny hand-written parquet dataset in tmp_path (not the real dataset).
-
-The fixture follows the identities the real data satisfies: proportion = demand / job-ad count per month,
-r0 = the all-occupation aggregate, r0 demand = sum of r1 demand over occupations."""
 import json
 
 import numpy as np
@@ -12,8 +8,8 @@ from src.sources import job_sdf as js
 from src.sources.validate import validate
 
 MONTHS = ["2021-01", "2021-02", "2021-03"]
-ADS = {0: [10, 20, 30], 1: [5, 5, 5]}  # job ads per occupation per month
-# mentions[occupation][skill] -> counts per month (skill 0 is common, skill 1 rare, skill 2 zero in month 2)
+ADS = {0: [10, 20, 30], 1: [5, 5, 5]}
+
 MENTIONS = {
     0: {0: [4, 6, 9], 1: [0, 1, 0], 2: [2, 0, 3]},
     1: {0: [1, 2, 2], 1: [0, 0, 1], 2: [1, 0, 0]},
@@ -21,7 +17,6 @@ MENTIONS = {
 
 
 def _write_dataset(root, mentions=MENTIONS, ads=ADS, r0_proportion_scale=1.0):
-    """Writes demand/ and proportion/ tables for r0 and r1 under root and returns root."""
     skills = sorted(next(iter(mentions.values())).keys())
     r1_rows, r1_prop = [], []
     for o in sorted(mentions):
@@ -64,7 +59,7 @@ def _cfg(**overrides):
 def test_inspect_identities_and_totals(dataset):
     facts = js.inspect(dataset)
     assert facts["identities_ok"] is True
-    assert facts["total_ads"] == 75  # 15 + 25 + 35 job ads over the three months
+    assert facts["total_ads"] == 75
     assert facts["occupations"] == 2 and facts["skills_in_r0"] == 3
 
 
@@ -74,11 +69,11 @@ def test_build_value_is_share_of_ads_and_support_is_count(dataset, tmp_path):
     obs = pd.read_csv(out, parse_dates=["period"]).set_index(["entity_id", "period"])
     jan, feb, mar = (pd.Timestamp(m) for m in ("2021-01-01", "2021-02-01", "2021-03-01"))
 
-    # all-occupation ads per month: 15, 25, 35
-    assert obs.loc[("skill_0", jan), "support"] == 5  # mentions of skill 0 in January: 4 + 1
+
+    assert obs.loc[("skill_0", jan), "support"] == 5
     assert obs.loc[("skill_0", jan), "value"] == pytest.approx(5 / 15)
     assert obs.loc[("skill_0", mar), "value"] == pytest.approx((9 + 2) / 35)
-    # an occupation's value is its share of all ads; support is its ad count
+
     assert obs.loc[("occupation_0", feb), "support"] == 20
     assert obs.loc[("occupation_0", feb), "value"] == pytest.approx(20 / 25)
     assert obs.loc[("occupation_1", jan), "value"] == pytest.approx(5 / 15)
@@ -91,9 +86,9 @@ def test_build_is_contiguous_zero_filled_and_long_format(dataset, tmp_path):
     assert set(obs.columns) == {"entity_id", "kind", "period", "source_id", "value", "support"}
     assert (obs["source_id"] == "job_sdf").all()
     assert set(obs["kind"]) == {"skill", "job"}
-    assert obs.groupby("entity_id")["period"].nunique().eq(3).all()  # 3 contiguous months, no gaps
+    assert obs.groupby("entity_id")["period"].nunique().eq(3).all()
     skill2 = obs[(obs["entity_id"] == "skill_2") & (obs["period"] == "2021-02-01")].iloc[0]
-    assert skill2["support"] == 0 and skill2["value"] == 0  # zero-filled, not missing
+    assert skill2["support"] == 0 and skill2["value"] == 0
     assert obs.loc[obs["entity_id"].str.startswith("occupation"), "kind"].eq("job").all()
     assert obs.loc[obs["entity_id"].str.startswith("skill"), "kind"].eq("skill").all()
     assert obs["value"].between(0, 1).all()
@@ -113,8 +108,8 @@ def test_meta_documents_the_denominator_and_checks(dataset, tmp_path):
 
 
 def test_top_and_low_support_filters_are_reported(dataset, tmp_path):
-    # totals over all months: skill_0 = 24, skill_2 = 6, skill_1 = 2. Top 2 = skill_0 and skill_2;
-    # skill_2 is then below the minimum of 20 and is reported as dropped. skill_1 is outside the top 2.
+
+
     out = js.build(dataset, out=tmp_path / "a.csv", cfg=_cfg(min_period_postings=1),
                    top_skills=2, min_skill_total=20)
     meta = json.loads(out.with_suffix(".meta.json").read_text())
@@ -128,7 +123,7 @@ def test_low_support_skills_are_dropped(dataset, tmp_path):
     out = js.build(dataset, out=tmp_path / "b.csv", cfg=_cfg(min_period_postings=1), top_skills=10,
                    min_skill_total=1000)
     obs = pd.read_csv(out)
-    assert not (obs["kind"] == "skill").any()  # every skill is below 1000 mentions in this tiny fixture
+    assert not (obs["kind"] == "skill").any()
     meta = json.loads(out.with_suffix(".meta.json").read_text())
     assert len(meta["skills_dropped_low_total"]) == 3
 
@@ -142,15 +137,15 @@ def test_output_passes_the_source_contract(dataset, tmp_path):
 
 
 def test_inconsistent_proportion_is_rejected(tmp_path):
-    root = _write_dataset(tmp_path / "bad", r0_proportion_scale=1.01)  # 1% off the demand / ads identity
-    with pytest.raises(ValueError, match="integers|not demand / job-ad count"):  # 1% off breaks the integer check first
+    root = _write_dataset(tmp_path / "bad", r0_proportion_scale=1.01)
+    with pytest.raises(ValueError, match="integers|not demand / job-ad count"):
         js.inspect(root)
 
 
 def test_occupations_must_sum_to_the_total(tmp_path):
     root = _write_dataset(tmp_path / "bad2")
     r1 = pd.read_parquet(root / "demand" / "r1.parquet")
-    r1.loc[0, "2021-01"] += 3  # changes r1 demand, so r0 no longer equals the sum over occupations
+    r1.loc[0, "2021-01"] += 3
     r1.to_parquet(root / "demand" / "r1.parquet", index=False)
     with pytest.raises(ValueError):
         js.inspect(root)

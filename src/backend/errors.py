@@ -1,8 +1,3 @@
-"""One error shape for every failure: {"error": {"code", "message", "details", "request_id"}}.
-
-Codes are snake_case and tied to the HTTP status: 404 not_found, 422 validation_error, 503 service_unavailable,
-500 internal_error. Validation details carry only location, message and type; the submitted values are never
-echoed back, so CV text cannot leak through an error. Unhandled errors never expose a traceback."""
 from __future__ import annotations
 
 from typing import Any
@@ -19,7 +14,7 @@ CODE_BY_STATUS = {
     409: "conflict", 413: "payload_too_large", 415: "unsupported_media_type", 422: "validation_error",
     429: "too_many_requests", 500: "internal_error", 503: "service_unavailable",
 }
-# OpenAPI documentation attached to routes, so clients see the error shape in the schema.
+
 ERROR_RESPONSES: dict = {
     404: {"model": ErrorEnvelope, "description": "Not found (unknown entity, candidate or path)."},
     422: {"model": ErrorEnvelope, "description": "Validation error (bad query, body or path parameter)."},
@@ -28,7 +23,6 @@ ERROR_RESPONSES: dict = {
 
 
 class ApiError(Exception):
-    """Raise to return the standard error body with a chosen status and code."""
 
     def __init__(self, status_code: int, message: str, details: Any = None, code: str | None = None):
         super().__init__(message)

@@ -1,12 +1,3 @@
-"""Check a candidate dataset against the source contract before plugging it in.
-
-    python3 -m src.sources.validate data/raw/<source_id>.csv --source-id <source_id>
-
-Works for any CSV in the long format, so a new open dataset or an insider/licensed export can be
-dropped in by (1) converting to the long format, (2) validating here, (3) adding a registry entry.
-Returns issues (errors block use) and warnings (usable but weak), plus coverage facts. Period
-thresholds are in periods of the source's own granularity: one year of history is the minimum.
-"""
 from __future__ import annotations
 
 import argparse
@@ -21,7 +12,6 @@ KINDS = {"skill", "job", "global"}
 
 def validate(df: pd.DataFrame, source: dict | None = None, target_entities: set | None = None,
              vocabulary_ids: set | None = None) -> dict:
-    """vocabulary_ids: when given (the shared taxonomy), every skill/job entity_id must be one of them."""
     errors, warnings = [], []
     missing = [c for c in COLUMNS if c not in df.columns and c != "support"]
     if missing:

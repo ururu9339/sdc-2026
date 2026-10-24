@@ -1,21 +1,10 @@
-"""Adapter: job_descriptions.csv (team-provided) -> the target series (registry entry with adapter = this module).
-
-    python3 -m src.sources.job_descriptions [path/to/job_descriptions.csv]
-
-Streams the ~1.7 GB file in chunks, reading only the four columns it needs, and aggregates to the
-source's granularity (weekly, Monday start). Writes:
-  data/raw/<source_id>.csv            long format, one row per (entity, period), share of that period's postings
-  data/raw/<source_id>.meta.json      coverage, thresholds, per-period totals, dropped periods
-  data/processed/job_skill_graph.csv  family x skill co-occurrence, for explanation only (never for trends)
-
-Provenance: provided by the team, apparently synthetic (period shares are indistinguishable from
-sampling noise). License unverified. Demo/training use only.
-"""
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from src.sources.common import (gap_periods, long_frame, period_rows, select_periods, source_cfg, to_period,
@@ -29,29 +18,57 @@ DEFAULT_RAW = ROOT / "src" / "data" / "job_descriptions.csv"
 DATE_COL, TITLE_COL, ROLE_COL, SKILLS_COL = "Job Posting Date", "Job Title", "Role", "skills"
 USECOLS = [DATE_COL, TITLE_COL, ROLE_COL, SKILLS_COL]
 CHUNK_ROWS = 200_000
+JOB_ID_COL = "Job Id"
+DUP_KEY_COLS = [TITLE_COL, ROLE_COL, SKILLS_COL, "Company", DATE_COL]
 
 
 def _tally(ch: pd.DataFrame, vocab, granularity: str) -> dict:
-    """Counts for one chunk. Every quantity is a sum, so chunks add up exactly."""
     period = to_period(ch[DATE_COL], granularity)
     keep = period.notna()
     ch, period = ch[keep], period[keep]
-    fam = job_of(ch[ROLE_COL], vocab.job_aliases).fillna(job_of(ch[TITLE_COL], vocab.job_aliases))  # Role, then Job Title
+    fam = job_of(ch[ROLE_COL], vocab.job_aliases).fillna(job_of(ch[TITLE_COL], vocab.job_aliases))
     skills = skill_flags(ch[SKILLS_COL], vocab.skill_aliases)
     has_fam = fam.notna()
     return {
         "rows_used": len(ch),
-        "totals": period.value_counts(),  # every dated row counts, matched or not
+        "totals": period.value_counts(),
         "skills": skills.groupby(period).sum(),
         "fams": pd.DataFrame({"period": period, "fam": fam}).dropna()
                   .groupby(["period", "fam"]).size().unstack(fill_value=0),
-        "co": skills[has_fam].groupby(fam[has_fam]).sum(),  # family x skill: postings with both
+        "co": skills[has_fam].groupby(fam[has_fam]).sum(),
         "fam_tot": fam[has_fam].value_counts(),
     }
 
 
 def _add(a, b):
     return b if a is None else a.add(b, fill_value=0)
+
+
+def measure_duplicates(path: str | Path, chunk_rows: int = CHUNK_ROWS) -> dict:
+    header = pd.read_csv(path, nrows=0).columns.tolist()
+    key_cols = [c for c in DUP_KEY_COLS if c in header]
+    all_but_id = [c for c in header if c != JOB_ID_COL]
+    h_key, h_all, n = [], [], 0
+    for ch in pd.read_csv(path, dtype=str, chunksize=chunk_rows):
+        n += len(ch)
+        h_key.append(pd.util.hash_pandas_object(ch[key_cols], index=False).to_numpy(dtype=np.uint64))
+        h_all.append(pd.util.hash_pandas_object(ch[all_but_id], index=False).to_numpy(dtype=np.uint64))
+    if n == 0:
+        return {"rows": 0, "key_columns": key_cols, "repeat_rows_key": 0, "share_repeat_rows_key": None,
+                "repeat_rows_except_job_id": 0, "share_repeat_rows_except_job_id": None, "method": None}
+    keys, alls = np.concatenate(h_key), np.concatenate(h_all)
+    rep_key = int(n - len(np.unique(keys)))
+    rep_all = int(n - len(np.unique(alls)))
+    return {
+        "rows": int(n),
+        "key_columns": key_cols,
+        "key_columns_absent": [c for c in DUP_KEY_COLS if c not in header],
+        "repeat_rows_key": rep_key,
+        "share_repeat_rows_key": rep_key / n if n else None,
+        "repeat_rows_except_job_id": rep_all,
+        "share_repeat_rows_except_job_id": rep_all / n if n else None,
+        "method": "a row counts as a repeat when an earlier row has the same key (64-bit hash); rows are not removed",
+    }
 
 
 def build(path: str | Path | None = None, out: Path | None = None, graph_out: Path | None = None,
@@ -98,6 +115,15 @@ def build(path: str | Path | None = None, out: Path | None = None, graph_out: Pa
         "min_entity_total": min_entity,
         "kept_entities": {"skill": skill_cnt.shape[1], "job": fam_cnt.shape[1]},
     }, out)
+
+    dups = measure_duplicates(path)
+    meta_path = out.with_suffix(".meta.json")
+    meta = json.loads(meta_path.read_text())
+    meta["posting_duplicates"] = dups
+    meta_path.write_text(json.dumps(meta, indent=2) + "\n")
+    print(f"posting duplicates: key {dups['repeat_rows_key']:,} rows ({dups['share_repeat_rows_key']:.2%}), "
+          f"all columns but Job Id {dups['repeat_rows_except_job_id']:,} rows "
+          f"({dups['share_repeat_rows_except_job_id']:.2%}) of {dups['rows']:,}; totals unchanged")
 
     co = acc["co"].fillna(0).astype(int)
     edges = co.rename_axis(index="job", columns="skill").stack().rename("n_cooccur").reset_index()

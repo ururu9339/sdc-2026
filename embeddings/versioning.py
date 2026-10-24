@@ -1,8 +1,3 @@
-"""Step 10: models/version_log.json, shared with the forecaster.
-
-The file is a list of entries, each tagged with a component ("embeddings", "forecaster", ...).
-At most one entry per component has status "active"; recording a new one retires the old.
-"""
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -33,7 +28,6 @@ def record(entry, component=COMPONENT):
 
 
 def gate(metrics, current=None, keys=("top1", "mrr")):
-    """Failures if `metrics` scores below the active version on the frozen gold set; [] means it may replace it."""
     current = current or active()
     if not current:
         return []
@@ -42,6 +36,5 @@ def gate(metrics, current=None, keys=("top1", "mrr")):
 
 
 def active_thresholds():
-    """Thresholds picked by evaluate.py, only if they were picked for the settings in use now."""
     e = active()
     return e["thresholds"] if e and e["version_tag"] == embedder.version_tag() else {}

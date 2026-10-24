@@ -1,24 +1,16 @@
-"""Step 8: match a user's skills to jobs and rank their skill gaps.
-
-    python -m embeddings.match "python3" "SQL" "excel" "data viz"
-
-Similarity decides overlap; growth numbers come only from the forecaster's entity_forecast table.
-An entity without a forecast is marked 'no_forecast' and treated as neutral (growth 0), never estimated here.
-"""
 import argparse
 
 from embeddings import db
 from embeddings.graph import job_skill_profile
 from embeddings.normalize import normalize
 
-HORIZON = 12        # months
-REACH = 0.5         # weighted share of a job's profile the user already has
-PROFILE_SIZE = 15   # skills per job considered
-TOP_TARGETS = 3     # jobs whose gaps are ranked
+HORIZON = 12
+REACH = 0.5
+PROFILE_SIZE = 15
+TOP_TARGETS = 3
 
 
 def resolve_skills(conn, items):
-    """Skill IDs picked from the taxonomy pass through; free text is normalized like posting mentions."""
     known = {r[0] for r in conn.execute("SELECT entity_id FROM entity_embedding WHERE entity_type = 'skill'")}
     ids, report = {}, []
     text = [s for s in items if s not in known]
@@ -64,12 +56,11 @@ def match_user(conn, skills, horizon=HORIZON):
         })
 
     results.sort(key=lambda r: (-r["coverage"], -(r["job_growth"] or 0)))
-    # Within reach: enough overlap, and the forecaster does not expect the job to shrink.
+
     within_reach = [r for r in results if r["coverage"] >= REACH and (r["job_growth"] is None or r["job_growth"] > 0)]
     targets = (within_reach or results)[:TOP_TARGETS]
 
-    # Gap score = graph weight x (1 + forecast skill growth): weight alone when there is no forecast,
-    # boosted for growing skills, discounted for shrinking ones.
+
     gaps = {}
     for r in targets:
         for d in r["missing"]:

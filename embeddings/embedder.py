@@ -10,7 +10,7 @@ import requests
 MODEL = "qwen3-embedding:4b"
 DIM = 1024
 OLLAMA = os.environ.get("OLLAMA_URL", "http://localhost:11434") + "/api/embed"
-OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY")  # for a remote Ollama behind a key-checking reverse proxy
+OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY")
 TASK = "Given a skill or job phrase from a job posting or CV, retrieve the matching standardized skill or occupation"
 
 HERE = Path(__file__).parent
@@ -37,7 +37,7 @@ def _request(texts):
     r = requests.post(OLLAMA, json={"model": MODEL, "input": texts}, headers=auth_headers(), timeout=300)
     r.raise_for_status()
     v = np.array(r.json()["embeddings"], dtype=np.float32)[:, :DIM]
-    return v / np.linalg.norm(v, axis=1, keepdims=True)                
+    return v / np.linalg.norm(v, axis=1, keepdims=True)
 
 def _embed(texts, batch=32, use_cache=True):
     if not texts:
