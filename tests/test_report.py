@@ -93,7 +93,7 @@ def _preview_job_record(p50: float, entity: str = "job:accountant"):
 
 
 def test_small_dip_labelled_stable_keeps_the_job_in_reach(preview_env):
-    AppendOnlyLog(preview_env["preview_path"]).append_many([_preview_job_record(math.log(0.92))])  # -8%
+    AppendOnlyLog(preview_env["preview_path"]).append_many([_preview_job_record(math.log(0.92))])
     r = service.build_report(["skill:accounting", "skill:excel"])
     assert r["status"] == "ok" and r["targets"] == ["job:accountant"]
     assert r["best_fit_jobs"][0]["growth"] == pytest.approx(-0.08)

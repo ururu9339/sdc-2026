@@ -36,7 +36,7 @@ def walk_forward(df: pd.DataFrame, cols: list[str], horizon: int = HORIZON, prof
             res[name] = b
         res["fold"] = len(folds)
         preds.append(res)
-        err = lambda c: float(np.mean(np.abs(res["y"] - res[c])))  # noqa: E731
+        err = lambda c: float(np.mean(np.abs(res["y"] - res[c])))
         folds.append({
             "fold": len(folds), "cutoff": cutoff, "n_test": len(res), "n_train": len(train),
             "mae_model": err("p50"), **{f"mae_{n}": err(n) for n in base},
@@ -54,7 +54,7 @@ def evaluate_gate(folds: pd.DataFrame, profile: dict | None = None) -> dict:
                 **head}
     base_cols = [c for c in folds.columns if c.startswith("mae_") and c != "mae_model"]
     w = folds["n_test"]
-    mean = lambda c: float(np.average(folds[c], weights=w))  # noqa: E731
+    mean = lambda c: float(np.average(folds[c], weights=w))
     best = min(base_cols, key=mean)
     model_mae, best_mae = mean("mae_model"), mean(best)
     win_rate = float((folds["mae_model"] < folds[best]).mean())

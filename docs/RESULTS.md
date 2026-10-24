@@ -5,7 +5,7 @@ All numbers below come from `python3 -m src.training.report` and the agent-loop 
 
 ## 1. Summary
 
-- We built a complete, tested forecasting pipeline: ingestion of three CSV sources, causal feature engineering, one global LightGBM model with 10/50/90% intervals, a fixed walk-forward gate, an abstention layer, append-only logs and a read-only API. 80 automated tests pass.
+- We built a complete, tested forecasting pipeline: ingestion of three CSV sources, causal feature engineering, one global LightGBM model with 10/50/90% intervals, a fixed walk-forward gate, an abstention layer, append-only logs and a read-only API. 277 automated tests pass.
 - **No model is currently live.** The gate compares every candidate with simple baselines on time-ordered held-out data and **rejected the model on all our datasets**. This is the system working as designed: it refuses to publish forecasts it cannot show are better than naive ones.
 - On the Malaysian-demo data the cause is the data: two of the three files are statistically indistinguishable from random sampling noise, and the real one (JobStreet) has no time overlap with the target.
 - On a real public dataset with genuine trends (Job-SDF) the model was **competitive but not good enough**: 3.9% worse than a damped-trend baseline under the strict gate. So better data alone is not enough to promote this model; we report that as is.
@@ -86,7 +86,7 @@ Not shown:
 ## 7. Reproduce
 
 ```bash
-python3 -m pytest -q tests                      # 80 tests
+python3 -m pytest -q tests                      # 277 tests
 python3 -m src.sources.build_all                # rebuild the three Malaysian-demo sources (~35 s)
 python3 -m src.training.report                  # audit, folds, gate verdict, ablation
 python3 -m src.pipeline.agent_loop replay --start 2022-06-13 --end 2023-09-11 --step 1

@@ -31,7 +31,7 @@ def submit_form(payload: CandidateCreate, session: Session = Depends(get_session
     session.add(db_candidate)
     session.commit()
     session.refresh(db_candidate)
-    return db_candidate  # type: ignore[return-value]
+    return db_candidate
 
 
 @router.post("/pdf", response_model=OCRResult, status_code=status.HTTP_201_CREATED,
