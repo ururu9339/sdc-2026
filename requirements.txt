@@ -1,5 +1,6 @@
 fastapi>=0.143.0
 uvicorn>=0.54.0
+httpx>=0.28.0
 sqlmodel>=0.0.48
 python-multipart>=0.0.32
 pytesseract>=0.3.13
@@ -10,3 +11,4 @@ lightgbm>=4.5.0
 pandas>=2.2.0
 numpy>=1.26.0
 pytest>=8.0.0
+pyarrow>=17.0.0

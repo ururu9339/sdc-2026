@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.backend.db import create_db_and_tables
 from src.backend.api.candidates import router as candidates_router
+from src.backend.api.forecast import router as forecast_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ def on_startup() -> None:
 
 
 app.include_router(candidates_router)
+app.include_router(forecast_router)
 
 
 @app.get("/health")

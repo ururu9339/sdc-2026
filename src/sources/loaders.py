@@ -1,6 +1,6 @@
 """Source loaders. Every loader returns the long format the pipeline stores:
 
-    entity_id, kind ('skill'|'job'), period (month start), source_id, value, support
+    entity_id, kind ('skill'|'job'), period (start of the source's own granularity period), source_id, value, support
 
 `support` is the raw sample size behind a value (e.g. mention count); NaN if not applicable.
 Real sources plug in by dropping a long-format CSV in data/raw/<source_id>.csv, or by adding a
@@ -13,7 +13,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.training.config import RAW_DIR
+from src.training import config as C
+
+RAW_DIR = None  # optional override for tests; None means config.RAW_DIR, read at call time
 
 MAPPING_DIR = Path(__file__).with_name("mappings")
 GLOBAL_ID = "__GLOBAL__"
@@ -33,7 +35,7 @@ class CsvLoader:
 
     def __init__(self, source_id: str, path: str | None = None, scope: str = "entity", **_):
         self.source_id, self.scope = source_id, scope
-        self.path = RAW_DIR / (path or f"{source_id}.csv")
+        self.path = (RAW_DIR or C.RAW_DIR) / (path or f"{source_id}.csv")
 
     def fetch(self, as_of: pd.Timestamp | None = None) -> pd.DataFrame:
         if not self.path.exists():

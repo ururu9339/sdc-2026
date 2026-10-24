@@ -1,0 +1,288 @@
+{
+  "_note": "Canonical role family id -> regex patterns over normalised text (lowercase, punctuation to spaces). Order = priority: the FIRST matching family wins, so specific families come before broad ones. Family ids must not collide with skill ids (skills_lexicon.json).",
+  "ux_designer": [
+    "\\bux\\b",
+    "\\bui\\b",
+    "user experience",
+    "user interface",
+    "interaction design",
+    "usability",
+    "product designer"
+  ],
+  "product_manager": [
+    "product (manager|owner|management)\\b"
+  ],
+  "data_scientist": [
+    "data scientist"
+  ],
+  "data_analyst": [
+    "data analy",
+    "business intelligence",
+    "\\bbi (analyst|developer|engineer)\\b",
+    "^analytics analyst"
+  ],
+  "ai_engineer": [
+    "\\bai\\b",
+    "artificial intelligence",
+    "machine learning",
+    "\\bml\\b",
+    "deep learning",
+    "computer vision",
+    "\\bnlp\\b"
+  ],
+  "cloud_engineer": [
+    "\\bcloud\\b",
+    "devops",
+    "site reliability",
+    "\\bsre\\b"
+  ],
+  "cybersecurity": [
+    "cyber",
+    "security",
+    "\\bsoc\\b",
+    "penetration",
+    "vulnerability",
+    "incident response"
+  ],
+  "database_admin": [
+    "database",
+    "\\bdba\\b"
+  ],
+  "qa_analyst": [
+    "\\bqa\\b",
+    "quality (assurance|control)",
+    "\\btest(er|ing)?\\b",
+    "automation test"
+  ],
+  "software_engineer": [
+    "software",
+    "\\bjava\\b",
+    "javascript",
+    "\\bpython\\b",
+    "programmer",
+    "\\bdeveloper\\b",
+    "(back|front) ?end",
+    "full ?stack"
+  ],
+  "project_manager": [
+    "project (manager|coordinator|director|management|lead)",
+    "program manager",
+    "scrum master"
+  ],
+  "market_research": [
+    "market (research|researcher|analyst|intelligence)",
+    "research analyst",
+    "competitive intelligence"
+  ],
+  "social_media": [
+    "social media",
+    "community (manager|coordinator)"
+  ],
+  "customer_service": [
+    "customer (service|support|success|care|relationship)",
+    "client (service|relationship|success)",
+    "call cent(er|re)",
+    "\\bcsr\\b"
+  ],
+  "sales": [
+    "\\bsales\\b",
+    "business development",
+    "account (executive|manager|director|representative|development)",
+    "territory",
+    "key account",
+    "promoter",
+    "ambassador",
+    "demonstrator"
+  ],
+  "marketing": [
+    "marketing",
+    "\\bseo\\b",
+    "\\bsem\\b",
+    "search engine",
+    "keyword",
+    "google ads",
+    "\\bppc\\b",
+    "\\bbrand\\b",
+    "content",
+    "copywrit",
+    "public relations",
+    "advertis",
+    "communications?\\b"
+  ],
+  "accountant": [
+    "accountant",
+    "accounting",
+    "bookkeep",
+    "\\baudit",
+    "\\baccounts\\b",
+    "account (assistant|clerk|officer)"
+  ],
+  "financial_analyst": [
+    "financ",
+    "invest",
+    "portfolio",
+    "wealth",
+    "\\btax\\b",
+    "retirement planner",
+    "estate planner",
+    "banker",
+    "actuar"
+  ],
+  "business_analyst": [
+    "business analy",
+    "process analy",
+    "requirements? analy"
+  ],
+  "hr_specialist": [
+    "\\bhr\\b",
+    "human resource",
+    "recruit",
+    "talent",
+    "people (operations|ops)",
+    "benefits coordinator",
+    "training coordinator"
+  ],
+  "procurement": [
+    "procure",
+    "purchas",
+    "buyer",
+    "sourcing",
+    "vendor"
+  ],
+  "supply_chain": [
+    "supply chain",
+    "logistic",
+    "inventory",
+    "warehouse",
+    "demand (planner|forecast|planning)",
+    "shipping",
+    "distribution"
+  ],
+  "operations_manager": [
+    "operations?\\b",
+    "facilities",
+    "site (supervisor|manager)",
+    "plant manager"
+  ],
+  "legal": [
+    "legal",
+    "attorney",
+    "lawyer",
+    "paralegal",
+    "litigation",
+    "\\bcounsel\\b",
+    "mediator",
+    "\\blaw\\b"
+  ],
+  "healthcare": [
+    "nurse",
+    "physician",
+    "doctor",
+    "therap",
+    "pharmac",
+    "dental",
+    "hygienist",
+    "pediatric",
+    "surgical",
+    "veterinar",
+    "psycholog",
+    "social worker",
+    "medical",
+    "paramedic",
+    "counsel(l)?or",
+    "caregiver",
+    "geriatric",
+    "clinical"
+  ],
+  "teacher": [
+    "teach",
+    "instructor",
+    "lecturer",
+    "tutor",
+    "curriculum",
+    "education",
+    "\\btrainer\\b"
+  ],
+  "event_planner": [
+    "\\bevent",
+    "wedding",
+    "conference",
+    "\\bvenue\\b"
+  ],
+  "electrical_engineer": [
+    "electric",
+    "electronic",
+    "power systems?",
+    "\\bplc\\b",
+    "instrumentation"
+  ],
+  "mechanical_engineer": [
+    "mechanical",
+    "manufacturing"
+  ],
+  "civil_engineer": [
+    "civil",
+    "structural",
+    "site engineer",
+    "project engineer",
+    "water resources",
+    "quantity surveyor",
+    "surveyor",
+    "construction"
+  ],
+  "process_engineer": [
+    "process engineer",
+    "chemical",
+    "production engineer"
+  ],
+  "it_support": [
+    "\\bit\\b",
+    "help ?desk",
+    "desktop support",
+    "technical support",
+    "information technology"
+  ],
+  "network_admin": [
+    "network",
+    "systems? (administrator|admin|analyst|engineer)",
+    "sysadmin",
+    "infrastructure",
+    "\\bccna\\b",
+    "\\bcisco\\b"
+  ],
+  "technician": [
+    "technician",
+    "technologist",
+    "maintenance",
+    "mechanic",
+    "electrician",
+    "installer"
+  ],
+  "architecture_design": [
+    "architect",
+    "landscape",
+    "interior",
+    "urban planner",
+    "environmental planner"
+  ],
+  "graphic_design": [
+    "graphic",
+    "visual designer",
+    "print designer",
+    "web designer",
+    "art director",
+    "illustrat",
+    "brand designer"
+  ],
+  "admin_assistant": [
+    "\\badmin",
+    "administrat",
+    "executive assistant",
+    "personal assistant",
+    "secretar",
+    "receptionist",
+    "\\bclerk\\b",
+    "data entry",
+    "\\boffice\\b"
+  ]
+}

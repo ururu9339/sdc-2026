@@ -1,16 +1,17 @@
 """Perceive -> decide -> act -> log.
 
-    python -m src.pipeline.agent_loop run                         # one pass at the latest data
-    python -m src.pipeline.agent_loop replay --start 2024-06 --end 2024-12   # step month by month
-    python -m src.pipeline.agent_loop status
+    python3 -m src.pipeline.agent_loop run [--as-of YYYY-MM-DD]
+    python3 -m src.pipeline.agent_loop replay --start YYYY-MM-DD --end YYYY-MM-DD [--step N]
+    python3 -m src.pipeline.agent_loop status
 
 perceive: pull new rows from every enabled source into the accumulating table, check source health.
 decide:   retrain if there is new data, no live model, or live accuracy has drifted below baseline.
-act:      refit on the FULL table, walk-forward backtest, fixed gate; promote only if it passes.
-          Then forecast with the live model (abstaining on thin series) and reconcile matured forecasts.
+act:      refit on the FULL table, walk-forward backtest, fixed gate (active profile); promote only if it
+          passes. Then forecast with the live model (abstaining on thin series) and reconcile matured
+          forecasts.
 log:      append-only forecast log, outcome log and run log.
-`replay` re-runs the loop as if each month were 'today' (loaders are sliced to as_of), which
-demonstrates continuous retraining on real data without waiting for new months to arrive.
+`replay` re-runs the loop as if each period were 'today' (loaders are sliced to as_of), so continuous
+retraining can be demonstrated on the real data. Dates may be any day; they are snapped to the period.
 """
 from __future__ import annotations
 
@@ -23,14 +24,11 @@ import pandas as pd
 from src.pipeline.store import AppendOnlyLog, ObservationStore, load_json, save_json
 from src.sources.loaders import get_loader
 from src.training import config as C
+from src.training.audit import records, signal_audit, source_coverage, summarise_audit
 from src.training.backtest import evaluate_gate, walk_forward
 from src.training.features import build_feature_table, column_source_map, feature_columns, usable
 from src.training.forecast import make_forecasts
 from src.training.train import fit_models, load_models, save_models, source_contributions
-
-
-def _months_between(a: pd.Timestamp, b: pd.Timestamp) -> int:
-    return (b.year - a.year) * 12 + (b.month - a.month)
 
 
 class AgentLoop:
@@ -51,7 +49,7 @@ class AgentLoop:
         tgt = C.target_source(self.registry)
         tgt_obs = obs[obs["source_id"] == tgt]
         if tgt_obs.empty:
-            return {"ok": False, "reason": f"no '{tgt}' data yet; run src.sources.jobstreet build", "added": added}
+            return {"ok": False, "reason": f"no '{tgt}' data yet; run src.sources.build_all", "added": added}
         as_of = as_of or tgt_obs["period"].max()
         as_of = min(as_of, tgt_obs["period"].max())
         health, active, weights = {}, set(), {}
@@ -61,9 +59,10 @@ class AgentLoop:
             if s.empty:
                 health[sid] = "no_data"
                 continue
-            stale = _months_between(s["period"].max() + pd.DateOffset(months=src.get("release_lag_months", 0)), as_of)
-            if stale > src["max_staleness_months"]:
-                health[sid] = f"stale ({stale} months)"
+            available = C.span_end(s["period"].max(), src["granularity"]) + pd.Timedelta(days=src.get("release_lag_days", 0))
+            stale_days = (as_of - available).days
+            if stale_days > src["max_staleness_days"]:
+                health[sid] = f"stale ({stale_days} days)"
                 continue
             health[sid] = "ok"
             active.add(sid)
@@ -75,21 +74,23 @@ class AgentLoop:
         if not vlog.get("live"):
             return True, "no live model"
         last = state.get("last_trained_as_of")
-        if last is None or _months_between(pd.Timestamp(last), as_of) >= C.RETRAIN_EVERY_PERIODS:
+        if last is None or C.periods_between(C.parse_period_label(last), as_of) >= C.RETRAIN_EVERY_PERIODS:
             return True, "new data since last training"
         if drift.get("drifted"):
             return True, f"drift: {drift['reason']}"
         return False, "model is current"
 
     # ---- act ---------------------------------------------------------------------------
-    def retrain(self, feats: pd.DataFrame, as_of: pd.Timestamp, vlog: dict, active: set) -> dict:
+    def retrain(self, feats: pd.DataFrame, as_of: pd.Timestamp, vlog: dict, active: set, audit: list[dict]) -> dict:
         cols = feature_columns(feats)
-        folds, _ = walk_forward(feats, cols)
-        gate = evaluate_gate(folds)
+        profile = C.active_gate_profile()
+        folds, _ = walk_forward(feats, cols, profile=profile)
+        gate = evaluate_gate(folds, profile)
         n_prev = len([h for h in vlog["history"] if h.get("version")])
-        entry = {"created_at": datetime.now(timezone.utc).isoformat(), "as_of": as_of.strftime("%Y-%m"),
-                 "gate": gate, "folds": folds.to_dict("records") if not folds.empty else [],
-                 "sources_used": sorted(active), "version": None, "status": "rejected"}
+        entry = {"created_at": datetime.now(timezone.utc).isoformat(), "as_of": C.period_label(as_of),
+                 "gate_profile": gate["profile"], "gate": gate,
+                 "folds": folds.to_dict("records") if not folds.empty else [],
+                 "sources_used": sorted(active), "audit": audit, "version": None, "status": "rejected"}
         if gate["passed"]:
             train = usable(feats)
             train = train[train["y"].notna()]
@@ -99,8 +100,9 @@ class AgentLoop:
             imp = source_contributions(models, X, column_source_map(cols, self.registry)).abs().mean()
             entry.update(version=version, status="promoted", n_train_rows=len(train),
                          source_importance={k: float(v) for k, v in imp.items()})
-            meta = {"version": version, "feature_columns": cols, "horizon": C.HORIZON,
-                    "trained_as_of": as_of.strftime("%Y-%m"), "gate": gate, "disclaimer": self.registry["disclaimer"]}
+            meta = {"version": version, "feature_columns": cols, "horizon_periods": C.HORIZON,
+                    "trained_as_of": C.period_label(as_of), "gate_profile": gate["profile"], "gate": gate,
+                    "disclaimer": self.registry["disclaimer"]}
             save_models(models, C.MODELS_DIR / f"forecaster_{version}", meta)
             vlog["live"] = version
         vlog["history"].append(entry)
@@ -115,15 +117,16 @@ class AgentLoop:
         for rec in self.forecast_log.read():
             if rec.get("status") != "ok" or rec["forecast_id"] in done:
                 continue
-            target = pd.Timestamp(rec["target_period"] + "-01")
+            target = C.parse_period_label(rec["target_period"])
             if target > as_of:
                 continue
-            key0, key1 = (rec["entity_id"], pd.Timestamp(rec["as_of"] + "-01")), (rec["entity_id"], target)
+            key0, key1 = (rec["entity_id"], C.parse_period_label(rec["as_of"])), (rec["entity_id"], target)
             if key0 not in actual.index or key1 not in actual.index or pd.isna(actual[key0]) or pd.isna(actual[key1]):
                 continue
             y = float(actual[key1] - actual[key0])
             out.append({"forecast_id": rec["forecast_id"], "model_version": rec["model_version"],
-                        "entity_id": rec["entity_id"], "target_period": rec["target_period"], "actual": y,
+                        "gate_profile": rec["gate_profile"], "entity_id": rec["entity_id"],
+                        "target_period": rec["target_period"], "actual": y,
                         "abs_err": abs(y - rec["p50"]), "abs_err_persistence": abs(y),
                         "abs_err_trend": abs(y - rec["baseline_trend"]),
                         "in_interval": bool(rec["p10"] <= y <= rec["p90"])})
@@ -142,7 +145,8 @@ class AgentLoop:
 
     # ---- one pass ----------------------------------------------------------------------
     def run_once(self, as_of: str | pd.Timestamp | None = None) -> dict:
-        as_of = pd.Timestamp(as_of) if as_of is not None else None
+        # The origin is a period start. Snapping before loading keeps a partly-elapsed week out of the table.
+        as_of = C.to_period_start(pd.Timestamp(as_of)) if as_of is not None else None
         p = self.perceive(as_of)
         run = {"run_at": datetime.now(timezone.utc).isoformat(), "added_rows": p["added"]}
         if not p["ok"]:
@@ -150,19 +154,25 @@ class AgentLoop:
             self.run_log.append_many([run])
             return run
         as_of = p["as_of"]
-        run.update(as_of=as_of.strftime("%Y-%m"), source_health=p["health"])
+        run.update(as_of=C.period_label(as_of), source_health=p["health"])
         state = load_json(C.STATE_PATH, {})
         vlog = load_json(C.VERSION_LOG_PATH, {"live": None, "history": []})
-        feats = build_feature_table(self.store.load(), self.registry, as_of, weights=p["weights"], active=p["active"])
+        obs = self.store.load()
+        tgt = C.target_source(self.registry)
+        audit = signal_audit(obs, self.registry, as_of)  # causal: only figures known at as_of
+        target_audit = audit[audit["source_id"] == tgt].set_index("entity_id")
+        run["source_coverage"] = records(source_coverage(obs, self.registry, as_of))
+        feats = build_feature_table(obs, self.registry, as_of, weights=p["weights"], active=p["active"])
 
         matured = self.reconcile(feats, as_of)
         run["outcomes_reconciled"] = len(matured)
         retrain, why = self.decide(as_of, state, vlog, self.drift_check())
         run["decision"] = {"retrain": retrain, "why": why}
         if retrain:
-            entry = self.retrain(feats, as_of, vlog, p["active"])
-            run["retrain"] = {"status": entry["status"], "version": entry["version"], "gate": entry["gate"]}
-            state["last_trained_as_of"] = as_of.strftime("%Y-%m")
+            entry = self.retrain(feats, as_of, vlog, p["active"], records(summarise_audit(audit, self.registry)))
+            run["retrain"] = {"status": entry["status"], "version": entry["version"], "gate": entry["gate"],
+                              "gate_profile": entry["gate_profile"]}
+            state["last_trained_as_of"] = C.period_label(as_of)
             save_json(C.STATE_PATH, state)
         if not vlog.get("live"):
             run.update(status="no_live_model", reason="gate not passed yet; no forecasts issued")
@@ -176,21 +186,24 @@ class AgentLoop:
             self.run_log.append_many([run])
             return run
         existing = {r["forecast_id"] for r in self.forecast_log.read()}
-        fc = [f for f in make_forecasts(models, meta, feats, as_of, self.registry) if f["forecast_id"] not in existing]
+        fc = [f for f in make_forecasts(models, meta, feats, as_of, self.registry, audit=target_audit)
+              if f["forecast_id"] not in existing]
         self.forecast_log.append_many(fc)
-        run.update(status="ok", live_version=vlog["live"], n_forecasts=len(fc),
-                   n_abstained=sum(f["status"] != "ok" for f in fc))
+        quality = {q: sum(f["signal_quality"] == q for f in fc) for q in ("noise_like", "trend_detected", "unknown")}
+        run.update(status="ok", live_version=vlog["live"], gate_profile=meta["gate_profile"], n_forecasts=len(fc),
+                   n_abstained=sum(f["status"] != "ok" for f in fc), signal_quality=quality)
         self.run_log.append_many([run])
         return run
 
-    def replay(self, start: str, end: str) -> list[dict]:
-        return [self.run_once(m) for m in pd.date_range(start, end, freq="MS")]
+    def replay(self, start: str, end: str, step: int = 1) -> list[dict]:
+        starts = C.period_range(pd.Timestamp(start), pd.Timestamp(end))[::step]
+        return [self.run_once(m) for m in starts]
 
     def status(self) -> dict:
         vlog = load_json(C.VERSION_LOG_PATH, {"live": None, "history": []})
         out = self.outcome_log.read()
-        s = {"live": vlog["live"], "attempts": len(vlog["history"]),
-             "logs_intact": all(l.verify() for l in (self.forecast_log, self.outcome_log, self.run_log)),
+        s = {"live": vlog["live"], "gate_profile": C.ACTIVE_GATE_PROFILE, "attempts": len(vlog["history"]),
+             "logs_intact": all(log.verify() for log in (self.forecast_log, self.outcome_log, self.run_log)),
              "matured_forecasts": len(out)}
         if out:
             s.update(live_mae=float(np.mean([r["abs_err"] for r in out])),
@@ -202,22 +215,26 @@ class AgentLoop:
 def main() -> None:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
-    r = sub.add_parser("run"); r.add_argument("--as-of")
-    rp = sub.add_parser("replay"); rp.add_argument("--start", required=True); rp.add_argument("--end", required=True)
+    r = sub.add_parser("run")
+    r.add_argument("--as-of")
+    rp = sub.add_parser("replay")
+    rp.add_argument("--start", required=True)
+    rp.add_argument("--end", required=True)
+    rp.add_argument("--step", type=int, default=1, help="run every N periods (default 1)")
     sub.add_parser("status")
     a = ap.parse_args()
     loop = AgentLoop()
     if a.cmd == "run":
         print(save_summary(loop.run_once(a.as_of)))
     elif a.cmd == "replay":
-        for res in loop.replay(a.start, a.end):
+        for res in loop.replay(a.start, a.end, a.step):
             print(save_summary(res))
     else:
         print(loop.status())
 
 
 def save_summary(run: dict) -> str:
-    keys = ("as_of", "status", "reason", "decision", "live_version", "n_forecasts", "n_abstained")
+    keys = ("as_of", "status", "reason", "decision", "live_version", "gate_profile", "n_forecasts", "n_abstained")
     return " | ".join(f"{k}={run[k]}" for k in keys if k in run)
 
 

@@ -1,123 +1,85 @@
-"""Adapter: JobStreet listings (azrai99/job-dataset, CC BY 4.0) -> long-format job_postings.csv.
+"""Adapter: JobStreet listings (azrai99/job-dataset, CC BY 4.0) -> the JobStreet leading source.
 
-    python -m src.sources.jobstreet inspect  path/to/jobs.csv
-    python -m src.sources.jobstreet build    path/to/jobs.csv
+    python3 -m src.sources.jobstreet [path/to/jobstreet_all_job_dataset.csv]
 
-`build` writes data/raw/job_postings.csv with one row per (entity, month): the share of that
-month's postings mentioning the skill (keyword lexicon) or holding the role (job title/role).
-`support` is the raw mention count. Entity extraction is a keyword fallback; swap `extract_skills`
-for the Qwen extractor when it exists.
-"""
+Writes data/raw/<source_id>.csv (long format) and its meta sidecar. Entities come from the shared
+taxonomy: job families from `role` then `job_title`, skills from `job_title` + `descriptions`.
+
+Periods (weekly, from the registry) with fewer than min_period_postings postings are dropped and
+listed in the meta file. This source is sparse: periods with no listings have no rows, and they are
+NOT zero-filled, so a gap stays a gap downstream."""
 from __future__ import annotations
 
-import json
-import re
 import sys
-import warnings
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
-from src.training.config import RAW_DIR
+from src.sources.common import gap_periods, long_frame, period_rows, select_periods, source_cfg, to_period, write_outputs
+from src.sources.taxonomy import family_of, load_lexicon, skill_flags
+from src.training import config as C
+from src.training.config import ROOT, period_label
 
-LEXICON_PATH = Path(__file__).with_name("skills_lexicon.json")
+SOURCE_ID = "jobstreet_my"
+DEFAULT_RAW = ROOT / "src" / "data" / "jobstreet_all_job_dataset.csv"
+USECOLS = ["job_id", "job_title", "descriptions", "role", "listingDate"]
 DATE_COL = "listingDate"
-MIN_ROLE_POSTINGS = 30  # a role needs this many postings overall to become a 'job' entity
-MAX_ROLES = 150
-MIN_SKILL_POSTINGS = 30
 
 
-def load_raw(path: str | Path) -> pd.DataFrame:
-    df = pd.read_csv(path)
-    missing = {"job_id", "job_title", DATE_COL} - set(df.columns)
-    if missing:
-        raise ValueError(f"CSV is missing columns: {sorted(missing)}")
-    df = df.drop_duplicates("job_id").copy()
-    df["listed"] = pd.to_datetime(df[DATE_COL], errors="coerce", utc=True).dt.tz_localize(None)
-    df = df.dropna(subset=["listed"])
-    df["period"] = df["listed"].dt.to_period("M").dt.to_timestamp()
-    return df
+def prepare(raw: pd.DataFrame, granularity: str) -> pd.DataFrame:
+    df = raw.drop_duplicates("job_id").copy()
+    df["period"] = to_period(df[DATE_COL], granularity)  # UTC date, the timestamps carry a Z suffix
+    return df[df["period"].notna()].copy()
 
 
-def inspect(path: str | Path) -> None:
-    df = load_raw(path)
-    print(f"rows (deduped, dated): {len(df):,}")
-    print(f"date range: {df['listed'].min()} -> {df['listed'].max()}")
-    per = df.groupby("period").size()
-    print(f"distinct months: {len(per)}  (plan wants 20+)")
-    print(per.to_string())
-    print("columns:", list(df.columns))
-    for col in ("category", "role", "location"):
-        if col in df:
-            print(f"top {col}:", df[col].value_counts().head(8).to_dict())
+def build_observations(df: pd.DataFrame, cfg: dict | None = None, lexicon: dict | None = None) -> tuple[pd.DataFrame, dict]:
+    cfg = cfg or source_cfg(SOURCE_ID)
+    gran, source_id = cfg["granularity"], cfg["source_id"]
+    lexicon = lexicon if lexicon is not None else load_lexicon()
+    totals_all = df.groupby("period").size()
+    grid, dropped = select_periods(totals_all, cfg["min_period_postings"], gran, cfg["dense"])
+    df = df[df["period"].isin(grid)]
+    totals = totals_all.reindex(grid).astype(int)
+    min_entity = cfg["min_entity_total"]
+
+    fam = family_of(df["role"]).fillna(family_of(df["job_title"]))
+    text = df["job_title"].fillna("") + " " + df["descriptions"].fillna("")
+    skill_cnt = skill_flags(text, lexicon).groupby(df["period"]).sum().reindex(grid).fillna(0).astype(int)
+    fam_cnt = (pd.DataFrame({"period": df["period"], "fam": fam}).dropna()
+               .groupby(["period", "fam"]).size().unstack(fill_value=0).reindex(grid).fillna(0).astype(int))
+    skill_cnt = skill_cnt.loc[:, skill_cnt.sum() >= min_entity]
+    fam_cnt = fam_cnt.loc[:, fam_cnt.sum() >= min_entity]
+
+    obs = pd.concat([long_frame(skill_cnt, totals, "skill", source_id),
+                     long_frame(fam_cnt, totals, "job", source_id)], ignore_index=True)
+    meta = {
+        "granularity": gran,
+        "rows_dated_deduped": int(totals_all.sum()),
+        "rows_used": int(totals.sum()),
+        "first_period": period_label(grid[0]) if len(grid) else None,
+        "last_period": period_label(grid[-1]) if len(grid) else None,
+        "periods": period_rows(totals),
+        "dropped_periods": dropped,
+        "gap_periods": gap_periods(grid, gran) if len(grid) else [],
+        "min_period_postings": cfg["min_period_postings"],
+        "min_entity_total": min_entity,
+        "kept_entities": {"skill": int(skill_cnt.shape[1]), "job": int(fam_cnt.shape[1])},
+    }
+    return obs, meta
 
 
-def normalise_role(s: pd.Series) -> pd.Series:
-    return (s.fillna("").str.lower().str.replace(r"[^a-z0-9 /+#.-]", " ", regex=True)
-            .str.replace(r"\s+", " ", regex=True).str.strip())
-
-
-def extract_skills(text: pd.Series, lexicon: dict[str, list[str]]) -> pd.DataFrame:
-    """Boolean frame, one column per canonical skill. Keyword fallback for the Qwen extractor."""
-    low = text.fillna("").str.lower()
-    out = {}
-    for skill, aliases in lexicon.items():
-        if skill.startswith("_"):
-            continue
-        pat = "|".join(f"(?<![a-z0-9]){a}(?![a-z0-9])" for a in aliases)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", UserWarning)  # alias groups are intentional
-            out[skill] = low.str.contains(re.compile(pat), regex=True)
-    return pd.DataFrame(out, index=text.index)
-
-
-def build_observations(df: pd.DataFrame, lexicon: dict | None = None) -> pd.DataFrame:
-    lexicon = lexicon or json.loads(LEXICON_PATH.read_text())
-    total = df.groupby("period").size()
-    months = total.index
-
-    text = df["job_title"].fillna("") + " " + df.get("descriptions", pd.Series("", index=df.index)).fillna("")
-    skills = extract_skills(text, lexicon)
-    skills["period"] = df["period"]
-    skill_counts = skills.groupby("period").sum().reindex(months, fill_value=0)
-    skill_counts = skill_counts.loc[:, skill_counts.sum() >= MIN_SKILL_POSTINGS]
-
-    role_col = normalise_role(df["role"] if "role" in df else df["job_title"])
-    top_roles = role_col[role_col != ""].value_counts()
-    top_roles = top_roles[top_roles >= MIN_ROLE_POSTINGS].head(MAX_ROLES).index
-    jr = pd.DataFrame({"period": df["period"], "role": role_col})
-    jr = jr[jr["role"].isin(top_roles)]
-    role_counts = jr.groupby(["period", "role"]).size().unstack(fill_value=0).reindex(months, fill_value=0)
-
-    frames = []
-    for counts, kind in ((skill_counts, "skill"), (role_counts, "job")):
-        long = counts.rename_axis(index="period", columns="entity_id").stack().rename("support").reset_index()
-        long["kind"] = kind
-        frames.append(long)
-    obs = pd.concat(frames, ignore_index=True)
-    obs["value"] = obs["support"].to_numpy() / total.reindex(obs["period"]).to_numpy()
-    obs["source_id"] = "job_postings"
-    return obs[["entity_id", "kind", "period", "source_id", "value", "support"]]
-
-
-def build(path: str | Path, out: Path | None = None) -> Path:
-    out = out or RAW_DIR / "job_postings.csv"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    obs = build_observations(load_raw(path))
-    obs.to_csv(out, index=False)
-    n_months = obs["period"].nunique()
-    print(f"wrote {out}: {len(obs):,} rows, {obs['entity_id'].nunique()} entities, {n_months} months")
-    if n_months < 20:
-        print(f"WARNING: only {n_months} months of history; the plan wants 20+. Backtests will be thin.")
+def build(path: str | Path | None = None, out: Path | None = None, cfg: dict | None = None) -> Path:
+    path = Path(path or DEFAULT_RAW)
+    cfg = cfg or source_cfg(SOURCE_ID)
+    out = Path(out or C.RAW_DIR / f"{cfg['source_id']}.csv")
+    raw = pd.read_csv(path, usecols=USECOLS, dtype=str)
+    obs, meta = build_observations(prepare(raw, cfg["granularity"]), cfg)
+    meta = {"source_id": cfg["source_id"], "raw_file": str(path), "rows_read": len(raw), **meta}
+    write_outputs(obs, meta, out)
+    print(f"wrote {out}: {len(obs):,} rows, {meta['kept_entities']} entities, {len(meta['periods'])} periods, "
+          f"{len(meta['dropped_periods'])} dropped")
     return out
 
 
 if __name__ == "__main__":
-    cmd, path = (sys.argv + [None, None])[1:3]
-    if cmd == "inspect" and path:
-        inspect(path)
-    elif cmd == "build" and path:
-        build(path)
-    else:
-        sys.exit("usage: python -m src.sources.jobstreet [inspect|build] <jobs.csv>")
+    build(sys.argv[1] if len(sys.argv) > 1 else None)
