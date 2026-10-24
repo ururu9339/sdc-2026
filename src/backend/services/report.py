@@ -38,6 +38,15 @@ ENGINES = ("auto", "qwen_pgvector", "offline_alias")
 MAX_SKILLS = 100
 MAX_TEXT_CHARS = 20000
 BLOB_MIN_ALIAS_CHARS = 3  # free text is matched only with aliases of 3+ characters, so 'r' or 'go' do not fire
+# Phrases that state a goal, not a skill held ("interested in machine learning", "ingin belajar Python"). Free text
+# from such a cue to the end of its sentence is not searched for skills. English and Malay.
+GOAL_CUES = re.compile(
+    r"\b(?:interested in|interest in|passion for|looking to|hoping to|hope to|aspir\w*|wants? to|wanting to|"
+    r"would like to|wish(?:es)? to|plan(?:s|ning)? to|keen (?:to|on)|eager to|aim(?:s|ing)? to|seeking|"
+    r"(?:move|moving|transition|transitioning|switch|switching|pivot|pivoting) (?:in)?to|career in|pursu\w* a career|"
+    r"currently learning|learning to|berminat|ingin|hendak|mahu|berhasrat|bercita-cita)\b", re.I)
+# A sentence ends at ; ! ? a new line, or a full stop followed by space, so "Node.js" does not end one.
+SENTENCE_END = re.compile(r"[;!?\n]|\.(?=\s|$)")
 GRAPH_FILENAME = store.GRAPH_FILENAME
 
 LEARNING_NOTE = ("The order is a heuristic, not a curriculum: skills are sorted by how many postings in our data "
@@ -82,6 +91,21 @@ def _best_alias(text: str, aliases: dict) -> tuple[int, str, str] | None:
             if m and (best is None or spec > best[0]):
                 best = (spec, sid, m.group(0))
     return best
+
+
+def _split_goals(text: str) -> tuple[str, list[str]]:
+    """(text without goal statements, the goal statements). A goal runs from its cue to the end of the sentence."""
+    kept, goals, pos = [], [], 0
+    for m in GOAL_CUES.finditer(text):
+        if m.start() < pos:
+            continue
+        end = SENTENCE_END.search(text, m.end())
+        stop = end.start() if end else len(text)
+        kept.append(text[pos:m.start()])
+        goals.append(text[m.start():stop].strip())
+        pos = stop
+    kept.append(text[pos:])
+    return "".join(kept), goals
 
 
 def _blob_matches(text: str, aliases: dict) -> dict[str, str]:
@@ -146,7 +170,7 @@ def _score(profiles: dict[str, list[dict]], have: set[str], names: dict, info_of
                      "matched": [d["skill_id"] for d in matched], "missing": [d["skill_id"] for d in missing],
                      "_missing_detail": missing, **_jobfit_info(info)})
     jobs.sort(key=lambda j: (-round(j["coverage"], 4), -(j["growth"] or 0.0), j["job_id"]))
-    within = {j["job_id"] for j in jobs if j["coverage"] >= REACH and (j["growth"] is None or j["growth"] > 0)}
+    within = {j["job_id"] for j in jobs if j["coverage"] >= REACH and not _declining(j["growth"])}
     pool = [j for j in jobs if j["job_id"] in within] or jobs
     targets = [j for j in pool[:TOP_TARGETS]] if jobs and jobs[0]["coverage"] > 0 else []
 
@@ -168,6 +192,12 @@ def _score(profiles: dict[str, list[dict]], have: set[str], names: dict, info_of
         job.pop("_missing_detail", None)
     return {"jobs": jobs, "within_reach": within, "targets": [t["job_id"] for t in targets],
             "gaps": list(gaps.values())}
+
+
+def _declining(growth: float | None) -> bool:
+    """The forecaster's own 'declining' rule: median log growth below -DIRECTION_THRESHOLD. A small dip that it
+    calls stable does not take a job out of reach. Same rule as embeddings/match.py."""
+    return growth is not None and math.log1p(growth) < -C.DIRECTION_THRESHOLD
 
 
 def _jobfit_info(info: dict) -> dict:
@@ -448,7 +478,13 @@ def build_report(skills: list[str], text: str | None = None, horizon_months: int
     vocab = T.load_vocabulary()
     names = dict(vocab.names)
     feed = store.serving_feed()
-    blob = _blob_matches(text, vocab.skill_aliases) if text else {}
+    held_text, goals = _split_goals(text)
+    blob = _blob_matches(held_text, vocab.skill_aliases) if held_text.strip() else {}
+    for goal in goals:
+        # Say so only when the goal named a skill, so the user sees why it is missing from their list.
+        if any(sid not in blob for sid in _blob_matches(goal, vocab.skill_aliases)):
+            warnings.append(f"'{_short_text(goal)}' reads as a goal, not a skill you have, so the skills in it "
+                            "were not counted.")
 
     data = None
     used = "offline_alias"
@@ -478,3 +514,8 @@ def build_report(skills: list[str], text: str | None = None, horizon_months: int
 
 def _short(exc: Exception) -> str:
     return re.sub(r"\s+", " ", str(exc))[:200]
+
+
+def _short_text(text: str, limit: int = 80) -> str:
+    text = re.sub(r"\s+", " ", text)
+    return text if len(text) <= limit else text[:limit - 3] + "..."
