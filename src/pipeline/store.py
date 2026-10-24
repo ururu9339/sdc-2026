@@ -78,6 +78,22 @@ class AppendOnlyLog:
         return True
 
 
+def write_chain(path: Path, records: list[dict]) -> int:
+    """Write `records` as a fresh hash chain at `path` (overwrites). Each record keeps its own logged_at, so the
+    chain verifies with AppendOnlyLog(path).verify() but the original timestamps are preserved. Used to build the
+    serving bundle; the live logs are never rewritten this way."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    prev = "genesis"
+    with open(path, "w") as f:
+        for rec in records:
+            body = {k: v for k, v in rec.items() if k not in ("hash", "prev_hash")}
+            body["prev_hash"] = prev
+            digest = hashlib.sha256(json.dumps(body, sort_keys=True, default=str).encode()).hexdigest()
+            f.write(json.dumps({**body, "hash": digest}, default=str) + "\n")
+            prev = digest
+    return len(records)
+
+
 def load_json(path: Path, default):
     return json.loads(path.read_text()) if path.exists() else default
 

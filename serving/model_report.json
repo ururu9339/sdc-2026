@@ -1,0 +1,230 @@
+{
+  "generated_at": "2026-10-24T17:24:44.355467+00:00",
+  "as_of": "2023-09-11",
+  "target_source": "job_postings",
+  "gate_profile": "demo",
+  "disclaimer": "All sources are open or student-accessible data used to TRAIN and demonstrate the forecasting method. They are proxies and do not reflect the true state of the Malaysian labour market; that would need far higher-quality (licensed) data. Model quality is judged by how accurately it forecasts from the data it is given, not by how trustworthy the data is.",
+  "audit_summary": [
+    {
+      "source_id": "job_postings",
+      "entities": 123,
+      "median_dispersion_ratio": 1.0125262939,
+      "share_noise_like": 1.0,
+      "first_period": "2021-09-13",
+      "last_period": "2023-09-11",
+      "periods_span": 105
+    },
+    {
+      "source_id": "market_signal",
+      "entities": 9,
+      "median_dispersion_ratio": 0.641914847,
+      "share_noise_like": 0.8888888889,
+      "first_period": "2022-01-01",
+      "last_period": "2023-08-01",
+      "periods_span": 20
+    }
+  ],
+  "timeline": {
+    "all_data": [
+      {
+        "source_id": "job_postings",
+        "role": "target",
+        "granularity": "weekly",
+        "enabled": true,
+        "periods": 105,
+        "overlap_periods": 105,
+        "first_period": "2021-09-13",
+        "last_period": "2023-09-11"
+      },
+      {
+        "source_id": "jobstreet_my",
+        "role": "leading",
+        "granularity": "weekly",
+        "enabled": true,
+        "periods": 30,
+        "overlap_periods": 0,
+        "first_period": "2024-01-29",
+        "last_period": "2025-05-05"
+      },
+      {
+        "source_id": "market_signal",
+        "role": "leading",
+        "granularity": "monthly",
+        "enabled": true,
+        "periods": 48,
+        "overlap_periods": 20,
+        "first_period": "2022-01-01",
+        "last_period": "2025-12-01"
+      }
+    ],
+    "known_at_as_of": [
+      {
+        "source_id": "job_postings",
+        "role": "target",
+        "granularity": "weekly",
+        "enabled": true,
+        "periods": 105,
+        "overlap_periods": 105,
+        "first_period": "2021-09-13",
+        "last_period": "2023-09-11"
+      },
+      {
+        "source_id": "jobstreet_my",
+        "role": "leading",
+        "granularity": "weekly",
+        "enabled": true,
+        "periods": 0,
+        "overlap_periods": 0,
+        "first_period": null,
+        "last_period": null
+      },
+      {
+        "source_id": "market_signal",
+        "role": "leading",
+        "granularity": "monthly",
+        "enabled": true,
+        "periods": 20,
+        "overlap_periods": 20,
+        "first_period": "2022-01-01",
+        "last_period": "2023-08-01"
+      }
+    ]
+  },
+  "folds": [
+    {
+      "fold": 0,
+      "cutoff": "2023-03-20T00:00:00.000",
+      "n_test": 1599,
+      "n_train": 6642,
+      "mae_model": 0.0360883436,
+      "mae_persistence": 0.0463062564,
+      "mae_trend": 0.0583548969,
+      "mae_damped_trend": 0.0517653219,
+      "mae_mean_reversion": 0.0340830231,
+      "mae_half_reversion": 0.0378979943,
+      "coverage": 0.7579737336,
+      "dir_acc_model": 0.7217010632
+    },
+    {
+      "fold": 1,
+      "cutoff": "2022-12-19T00:00:00.000",
+      "n_test": 1599,
+      "n_train": 5043,
+      "mae_model": 0.0332337356,
+      "mae_persistence": 0.0476411241,
+      "mae_trend": 0.0610038832,
+      "mae_damped_trend": 0.0536232375,
+      "mae_mean_reversion": 0.0323254059,
+      "mae_half_reversion": 0.0368943832,
+      "coverage": 0.7886178862,
+      "dir_acc_model": 0.7648530331
+    },
+    {
+      "fold": 2,
+      "cutoff": "2022-09-19T00:00:00.000",
+      "n_test": 1599,
+      "n_train": 3444,
+      "mae_model": 0.0394191587,
+      "mae_persistence": 0.0512612382,
+      "mae_trend": 0.0653435244,
+      "mae_damped_trend": 0.057645292,
+      "mae_mean_reversion": 0.0383434702,
+      "mae_half_reversion": 0.0421995933,
+      "coverage": 0.722326454,
+      "dir_acc_model": 0.7054409006
+    }
+  ],
+  "gate": {
+    "profile": "demo",
+    "constraints": {
+      "n_folds": 6,
+      "fold_step": 13,
+      "min_train_periods": 26,
+      "min_folds": 3,
+      "mae_margin": 0.0,
+      "min_fold_win_rate": 0.5,
+      "coverage_range": [
+        0.55,
+        0.98
+      ]
+    },
+    "passed": false,
+    "checks": {
+      "beats_baseline": false,
+      "fold_win_rate": false,
+      "calibrated": true
+    },
+    "n_folds": 3,
+    "model_mae": 0.03624707928332942,
+    "best_baseline": "mean_reversion",
+    "best_baseline_mae": 0.03491729976536811,
+    "improvement_pct": -3.8083687080529005,
+    "fold_win_rate": 0.0,
+    "coverage": 0.7563060245987075,
+    "reason": "failed: beats_baseline, fold_win_rate"
+  },
+  "gate_verdict": "GATE REJECTED under the DEMO profile (relaxed constraints; sources are weak proxies): model MAE 0.0362 is not at least 0% below the best baseline 'mean_reversion' (0.0349); improvement -3.8%; model beat the baseline in 0% of folds (need 50%)\n  folds=3, model MAE=0.0362, best baseline 'mean_reversion'=0.0349",
+  "ablation": [
+    {
+      "config": "all_sources",
+      "dropped": "none",
+      "overlap_jobstreet_my": 0,
+      "overlap_market_signal": 20,
+      "status": "ok",
+      "n_features": 21,
+      "n_folds": 3,
+      "model_mae": 0.0362470793,
+      "best_baseline": "mean_reversion",
+      "best_baseline_mae": 0.0349172998,
+      "improvement_pct": -3.8083687081,
+      "passed": false,
+      "gate_profile": "demo"
+    },
+    {
+      "config": "without_jobstreet_my",
+      "dropped": "jobstreet_my",
+      "overlap_jobstreet_my": 0,
+      "overlap_market_signal": 20,
+      "status": "no_overlap",
+      "n_features": null,
+      "n_folds": null,
+      "model_mae": null,
+      "best_baseline": null,
+      "best_baseline_mae": null,
+      "improvement_pct": null,
+      "passed": null,
+      "gate_profile": null
+    },
+    {
+      "config": "without_market_signal",
+      "dropped": "market_signal",
+      "overlap_jobstreet_my": 0,
+      "overlap_market_signal": 20,
+      "status": "ok",
+      "n_features": 15,
+      "n_folds": 3,
+      "model_mae": 0.0359322635,
+      "best_baseline": "mean_reversion",
+      "best_baseline_mae": 0.0349172998,
+      "improvement_pct": -2.9067645457,
+      "passed": false,
+      "gate_profile": "demo"
+    },
+    {
+      "config": "target_only",
+      "dropped": "all_leading",
+      "overlap_jobstreet_my": 0,
+      "overlap_market_signal": 20,
+      "status": "ok",
+      "n_features": 15,
+      "n_folds": 3,
+      "model_mae": 0.0359322635,
+      "best_baseline": "mean_reversion",
+      "best_baseline_mae": 0.0349172998,
+      "improvement_pct": -2.9067645457,
+      "passed": false,
+      "gate_profile": "demo"
+    }
+  ],
+  "source_importance": null
+}

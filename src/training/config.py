@@ -10,6 +10,8 @@ Malaysian demo state (see README in src/sources):
     SDC_DATA_DIR    replaces <repo>/data        (raw, processed, logs, report all live below it)
     SDC_MODELS_DIR  replaces <repo>/src/models  (version log and saved models)
     GATE_PROFILE    "demo" (default) or "production"
+Without SDC_DATA_DIR, a deployment with no local data/ but a committed serving/ bundle serves the bundle
+(see resolve_layout).
 Paths that can be overridden are read when the module is imported; functions that take a path default
 to None and read the module attribute at call time, so tests may monkeypatch them."""
 from __future__ import annotations
@@ -18,10 +20,13 @@ import json
 import math
 import os
 from pathlib import Path
+from typing import Mapping
 
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
+SERVING_DIR = ROOT / "serving"  # committed snapshot that the API serves when no local data/ exists (see export_bundle)
+BUNDLE_MANIFEST = "manifest.json"
 
 
 def _env_path(name: str, default: Path) -> Path:
@@ -29,10 +34,42 @@ def _env_path(name: str, default: Path) -> Path:
     return Path(value) if value else default
 
 
-DATA_DIR = _env_path("SDC_DATA_DIR", ROOT / "data")
+def resolve_layout(environ: Mapping[str, str] | None = None, root: Path | None = None) -> dict:
+    """Where the API reads its runtime files from.
+
+    mode 'env'     SDC_DATA_DIR is set: that directory is used.
+    mode 'bundle'  SDC_DATA_DIR is unset, the repo data/ has no forecast or preview log, and
+                   <root>/serving/manifest.json exists: serving/ is used, and serving/models for models.
+    mode 'repo'    otherwise: <root>/data and <root>/src/models (the local working state).
+    SDC_MODELS_DIR, when set, always wins for the models directory.
+    """
+    env = os.environ if environ is None else environ
+    root = ROOT if root is None else Path(root)
+    repo_data, serving = root / "data", root / "serving"
+    env_data = env.get("SDC_DATA_DIR")
+    env_models = env.get("SDC_MODELS_DIR")
+    has_repo_logs = (repo_data / "forecast_log.jsonl").exists() or (repo_data / "preview_log.jsonl").exists()
+    if env_data:
+        data, mode = Path(env_data), "env"
+    elif not has_repo_logs and (serving / BUNDLE_MANIFEST).exists():
+        data, mode = serving, "bundle"
+    else:
+        data, mode = repo_data, "repo"
+    if env_models:
+        models = Path(env_models)
+    elif mode == "bundle":
+        models = serving / "models"
+    else:
+        models = root / "src" / "models"
+    return {"data_dir": data, "models_dir": models, "mode": mode, "serving_dir": serving}
+
+
+_LAYOUT = resolve_layout()
+DATA_DIR = _LAYOUT["data_dir"]
+DATA_LAYOUT = _LAYOUT["mode"]  # 'env' | 'bundle' | 'repo', reported by /health
 PROCESSED_DIR = DATA_DIR / "processed"
 RAW_DIR = DATA_DIR / "raw"
-MODELS_DIR = _env_path("SDC_MODELS_DIR", ROOT / "src" / "models")
+MODELS_DIR = _LAYOUT["models_dir"]
 REGISTRY_PATH = _env_path("SDC_REGISTRY", ROOT / "src" / "sources" / "sources_registry.json")
 TAXONOMY_DIR = _env_path("SDC_TAXONOMY_DIR", ROOT / "embeddings" / "taxonomy")
 

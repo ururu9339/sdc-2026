@@ -71,3 +71,35 @@ Not verified:
 - writing to a real Postgres (no Postgres, pgvector or psycopg connection was available in this environment);
 - `match.py` run against our rows, and `graph.py` against our data;
 - alias quality: short names such as `Go` and `R` match ordinary words in job text. See `docs/RESULTS.md`.
+
+## 7. Report endpoint (CV to report)
+
+`POST /report` takes skills (taxonomy ids or free text) and optional CV text, and returns best-fit jobs, skill gaps,
+a learning order, a descriptive market snapshot and labelled outlook figures. `GET /report/candidate/{id}` builds the
+same report from a stored candidate. `GET /taxonomy/skills` lists the skill vocabulary.
+
+**Engine selection** (`engine` in the request body, default `auto`):
+- `auto`: uses the embeddings team's matcher (`embeddings/match.py`, reported as `qwen_pgvector`) when the
+  `DATABASE_URL` environment variable is set and that matcher imports and runs. Otherwise it uses the offline matcher.
+- `qwen_pgvector`: the same, but it still falls back to offline when unavailable.
+- `offline_alias`: always the offline matcher.
+If the real engine raises, the response uses the offline matcher and `warnings` says so. The `engine` field always
+states which one produced the result.
+
+**Offline vs Qwen.** The offline matcher resolves skills with the taxonomy alias rules (`src/sources/taxonomy.py`) and
+scores with the job-skill graph in `data/processed/job_skill_graph.csv`, using the same formulas as
+`embeddings/match.py` (constants are checked by a test). It has no language model, and free-text matches can be
+noisy: two-character aliases are ignored in free text. The Qwen path calls `match_user`, `resolve_skills`,
+`job_skill_profile`, and reads growth from `entity_forecast`.
+
+**Outlook labels.** `feed` is `live` (validated model), `preview` (unvalidated; `validated: false` and the store's
+PREVIEW banner) or `none` (no forecast; no growth shown). Growth is `exp(p50) - 1` over 3 months, and is shown only
+for a 3-month horizon.
+
+**Verified:** all report tests (`tests/test_report.py`, `tests/test_api_report.py`) run offline on hand-written
+fixtures, including the hand-computed scores; the constants match `embeddings/match.py` and `graph.py`; a live
+uvicorn smoke of `POST /report` and `GET /taxonomy/skills` on the real taxonomy and graph.
+
+**Not verified:** the Qwen/pgvector path. No Postgres, pgvector, psycopg or Ollama was available, so that path only
+has its fallback tested (a failing `DATABASE_URL` falls back offline). `GET /report/candidate/{id}` was tested with a
+temporary SQLite database; the PDF OCR path depends on Tesseract, which was not installed here.

@@ -8,7 +8,8 @@ client = TestClient(app)
 
 
 def test_health():
-    assert client.get("/health").json() == {"status": "ok"}
+    body = client.get("/api/v1/health").json()
+    assert body["status"] == "ok" and body["ready"] is True and "feed" in body["data"]
 
 
 # ---- no live model: the real shape of today ----------------------------------------------

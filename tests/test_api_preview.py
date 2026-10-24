@@ -1,6 +1,5 @@
 """API: the preview feed (unvalidated, banner, validated: false) and the descriptive /snapshot.
 Fixtures are hand-written and live in tmp_path (see conftest.py)."""
-import numpy as np
 import pandas as pd
 from fastapi.testclient import TestClient
 
