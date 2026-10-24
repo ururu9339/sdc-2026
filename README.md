@@ -2,7 +2,7 @@
 
 # Currvix
 
-> Currvix forecasts which skills and jobs Malaysian employers will need, and shows each person the shortest reskilling path to a growing role.
+> Currvix forecasts which skills and jobs employers will need, and shows each person the shortest reskilling path to a growing role.
 
 ---
 
@@ -12,7 +12,7 @@
 | ---------------------- | ------------------------------------------- |
 | **Team Name**          | NoCoders.ai.                                |
 | **Team Domain**        | Domain 1.                                   |
-| **SDG Track (1–17)**   | SDG 4: Quality Education (Target 4.4) |
+| **SDG Track (1–17)**   | SDG 4: Quality Education (Target 4.4)       |
 | **Team Leader**        | Nurali Zhan                                 |
 | **University**         | Xiamen University Malaysia                  |
 | **Number of Members**  | 4.                                          |
@@ -22,9 +22,9 @@
 | Resource          | Link                                           |
 | ----------------- | ---------------------------------------------- |
 | GitHub Repository | https://github.com/ururu9339/sdc-2026.git      |
-| Live Demo         | https://your-project.replit.app                |
-| Slide Deck        | https://example.com/slides                     |
-| Demo Video        | https://example.com/demo-video                 |
+| Live Demo         | https://currvix-skills-forecast.replit.app/    |
+| Slide Deck        | https://canva.link/1uwy2kiokp5nove             |
+| Demo Video        | https://www.youtube.com/watch?v=mlGHewNs4HA    |
 
 ---
 
@@ -217,8 +217,6 @@ A new model, vector size or instruction text must score at least as well as the 
 
 - **Frontend:** built on Replit. It calls the REST API described in `docs/API_FOR_FRONTEND.md`.
 - **Backend hosting:** the FastAPI backend runs on Replit with `uvicorn src.backend.main:app --host 0.0.0.0 --port 8000`. It serves a committed snapshot of the forecasts (`serving/`), so no model training runs on the server. See `docs/DEPLOY_REPLIT.md`.
-- **Secrets:** `CORS_ORIGINS` and, when the Qwen matcher is connected, `DATABASE_URL`, `OLLAMA_URL` and `OLLAMA_API_KEY` are stored in Replit Secrets, never in the code.
-
 ---
 
 ## Challenges & Learnings
