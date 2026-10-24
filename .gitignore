@@ -2,6 +2,9 @@ AGENTS.md
 *.db/ *.sqlite3
 __pycache__/
 .ipynb_checkpoints/
-# ── Large data files ────────────────────────────────────────────────────────
 *.csv
 *.parquet
+!embeddings/taxonomy/*.csv
+embeddings/.cache/
+.DS_Store
+!embeddings/eval/*.csv

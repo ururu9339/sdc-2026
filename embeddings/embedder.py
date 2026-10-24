@@ -65,16 +65,13 @@ def _embed(texts, batch=32, use_cache=True):
     return np.vstack([found[k] for k in keys])
 
 def embed_documents(texts, **kw):
-    """Taxonomy entries: no instruction."""
     return _embed(list(texts), **kw)
 
 
 def embed_queries(texts, **kw):
-    """Raw mentions, CV lines, new job titles: instruction-prefixed, as Qwen3-Embedding expects."""
     return _embed([f"Instruct: {TASK}\nQuery: {t}" for t in texts], **kw)
 
 def load_taxonomy(kind=None):
-    """Rows from taxonomy/skills.csv and/or taxonomy/jobs.csv. kind: 'skill', 'job' or None for both."""
     files = {"skill": ["skills.csv"], "job": ["jobs.csv"], None: ["skills.csv", "jobs.csv"]}[kind]
     rows = []
     for f in files:
@@ -83,6 +80,5 @@ def load_taxonomy(kind=None):
     return rows
 
 def entity_text(row):
-    """name + alt labels + one-line description; embeds better than the name alone."""
     alts = row["alt_labels"].replace("|", ", ")
     return f"{row['name']} ({alts}). {row['description']}" if alts else f"{row['name']}. {row['description']}"
