@@ -24,7 +24,7 @@ ROWS = [  # weeks (Monday start): Jan 1 (2 rows), Jan 15 (2 rows), Feb 5 (1 row)
 
 def test_build_observations_weekly_shares():
     obs, meta = js.build_observations(js.prepare(_raw(ROWS), "weekly"), _cfg(min_period_postings=1, min_entity_total=1))
-    sql = obs[(obs.entity_id == "sql") & (obs.kind == "skill")].set_index("period")
+    sql = obs[(obs.entity_id == "skill:sql") & (obs.kind == "skill")].set_index("period")
     assert sql.loc[pd.Timestamp("2024-01-01"), "value"] == 0.5
     assert sql.loc[pd.Timestamp("2024-01-15"), "value"] == 0.5
     assert sql.loc[pd.Timestamp("2024-02-05"), "support"] == 1

@@ -16,7 +16,7 @@ import time
 
 import pandas as pd
 
-from src.sources.taxonomy import ROLE_FAMILIES, load_lexicon, vocabulary_errors
+from src.sources.taxonomy import load_vocabulary
 from src.sources.validate import validate
 from src.training import config as C
 
@@ -44,9 +44,11 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", help="comma-separated source_ids to build")
     a = ap.parse_args()
-    errors = vocabulary_errors(ROLE_FAMILIES, load_lexicon())
-    if errors:
-        sys.exit("\n".join(errors))
+    try:
+        vocab = load_vocabulary()
+    except ValueError as e:
+        sys.exit(f"taxonomy: {e}")
+    vocab_ids = vocab.ids("skill") | vocab.ids("job")
     registry = C.load_registry()
     wanted = set(a.only.split(",")) if a.only else None
     sources = [s for s in registry["sources"] if s.get("adapter") and (wanted is None or s["source_id"] in wanted)]
@@ -67,7 +69,7 @@ def main() -> None:
     print("\nvalidation")
     for src in sources:
         sid = src["source_id"]
-        res = validate(outputs[sid], src, target_entities)
+        res = validate(outputs[sid], src, target_entities, vocabulary_ids=vocab_ids)
         facts[sid] = res["facts"]
         print(f"  {sid}: {'OK' if res['ok'] else 'FAILED'}  build {timings[sid]:.1f}s")
         for e in res["errors"]:

@@ -20,7 +20,7 @@ import pandas as pd
 
 from src.sources.common import (gap_periods, long_frame, period_rows, select_periods, source_cfg, to_period,
                                 write_outputs)
-from src.sources.taxonomy import family_of, load_lexicon, skill_flags
+from src.sources.taxonomy import job_of, load_vocabulary, skill_flags
 from src.training import config as C
 from src.training.config import ROOT, period_label
 
@@ -31,13 +31,13 @@ USECOLS = [DATE_COL, TITLE_COL, ROLE_COL, SKILLS_COL]
 CHUNK_ROWS = 200_000
 
 
-def _tally(ch: pd.DataFrame, lexicon: dict, granularity: str) -> dict:
+def _tally(ch: pd.DataFrame, vocab, granularity: str) -> dict:
     """Counts for one chunk. Every quantity is a sum, so chunks add up exactly."""
     period = to_period(ch[DATE_COL], granularity)
     keep = period.notna()
     ch, period = ch[keep], period[keep]
-    fam = family_of(ch[ROLE_COL]).fillna(family_of(ch[TITLE_COL]))  # Role first, then Job Title
-    skills = skill_flags(ch[SKILLS_COL], lexicon)
+    fam = job_of(ch[ROLE_COL], vocab.job_aliases).fillna(job_of(ch[TITLE_COL], vocab.job_aliases))  # Role, then Job Title
+    skills = skill_flags(ch[SKILLS_COL], vocab.skill_aliases)
     has_fam = fam.notna()
     return {
         "rows_used": len(ch),
@@ -61,13 +61,13 @@ def build(path: str | Path | None = None, out: Path | None = None, graph_out: Pa
     source_id, gran = cfg["source_id"], cfg["granularity"]
     out = Path(out or C.RAW_DIR / f"{source_id}.csv")
     graph_out = Path(graph_out or C.PROCESSED_DIR / "job_skill_graph.csv")
-    lexicon = load_lexicon()
+    vocab = load_vocabulary()
 
     acc: dict = {k: None for k in ("totals", "skills", "fams", "co", "fam_tot")}
     rows_read = rows_used = 0
     for ch in pd.read_csv(path, usecols=USECOLS, dtype=str, chunksize=chunk_rows):
         rows_read += len(ch)
-        part = _tally(ch, lexicon, gran)
+        part = _tally(ch, vocab, gran)
         rows_used += part.pop("rows_used")
         for k, v in part.items():
             acc[k] = _add(acc[k], v)

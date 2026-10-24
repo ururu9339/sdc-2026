@@ -14,7 +14,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.sources.common import long_frame, period_rows, select_periods, source_cfg, write_outputs
-from src.sources.taxonomy import family_of
+from src.sources.taxonomy import job_of, load_vocabulary
 from src.training import config as C
 from src.training.config import GRANULARITY_FREQ, ROOT, to_period_start
 
@@ -23,12 +23,13 @@ DEFAULT_RAW = ROOT / "src" / "data" / "job_market_dataset.csv"
 USECOLS = ["year", "month", "occupation"]
 
 
-def build_observations(raw: pd.DataFrame, cfg: dict | None = None) -> tuple[pd.DataFrame, dict]:
+def build_observations(raw: pd.DataFrame, cfg: dict | None = None, vocab=None) -> tuple[pd.DataFrame, dict]:
     cfg = cfg or source_cfg(SOURCE_ID)
+    vocab = vocab if vocab is not None else load_vocabulary()
     gran, source_id, min_entity = cfg["granularity"], cfg["source_id"], cfg["min_entity_total"]
     first_of_month = pd.to_datetime(pd.DataFrame({"year": raw["year"], "month": raw["month"], "day": 1}))
     period = to_period_start(first_of_month, GRANULARITY_FREQ[gran])
-    family = family_of(raw["occupation"])
+    family = job_of(raw["occupation"], vocab.job_aliases)
     totals_all = period.value_counts()
     grid, dropped = select_periods(totals_all, cfg["min_period_postings"], gran, cfg["dense"])
     totals = totals_all.reindex(grid)

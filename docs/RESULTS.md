@@ -108,3 +108,41 @@ python3 -m src.sources.job_sdf build && python3 -m src.training.report
 
 - JobStreet listings: azrai99/job-dataset (Hugging Face), CC BY 4.0 per its card.
 - Job-SDF: *Job-SDF: A Multi-Granularity Dataset for Job Skill Demand Forecasting and Benchmarking*, NeurIPS 2024 Datasets and Benchmarks Track (non-commercial use).
+
+## 10. Taxonomy integration and preview feed
+
+Added after sections 1 to 9, which are unchanged. Where a rebuilt number differs from an earlier one, both are given.
+
+**Vocabulary.** The teammate taxonomy (`embeddings/taxonomy`: 108 skills, 56 jobs) is now the only vocabulary, and entity ids are its ids (`skill:python`, `job:accountant`). The legacy `skills_lexicon.json` (78 skills) and `role_families.json` (37 families) are removed. 28 legacy skills and 16 legacy families had a taxonomy counterpart (same id, or same normalised name) and were carried over as regex extras in `src/sources/vocab_extra.json`. The other 50 legacy skills and 21 legacy families have no counterpart and were dropped; they are in git history (`git show HEAD:src/sources/skills_lexicon.json`, `git show HEAD:src/sources/role_families.json`).
+
+Rebuilt with `python3 -m src.sources.build_all`:
+
+| Source | Measure | Legacy vocabulary | Taxonomy |
+|---|---|---|---|
+| job_postings (target) | skills / jobs kept | 72 / 37 | 82 / 41 |
+| job_postings | postings with at least one skill match | 84.1% | 82.8% |
+| job_postings | postings with at least one job match | 97.6% | **55.3%** |
+| jobstreet_my | skills / jobs kept | 77 / 37 | 104 / 49 |
+| jobstreet_my | listings with at least one skill match | 92.0% | 95.6% |
+| jobstreet_my | listings with at least one job match | 75.5% | **43.8%** |
+| market_signal | occupations kept (of 12 distinct) | 12 | 9 |
+| market_signal | rows whose occupation matches a job | 100% | 75.1% |
+
+- Entity counts did not collapse (none fell below 40% of before). Job matching per posting **did** fall sharply: role strings often match no taxonomy name or alt label, and the legacy families they used to match were dropped. The market occupations HR Analyst, Marketing Specialist and Operations Manager have no taxonomy counterpart and are dropped; the sidecar lists them.
+- A flat taxonomy has no priority order, so a job takes its most specific matching alias (longest), with ties to the earlier row. Legacy families were first-match in priority order. This is a deliberate change.
+- Short names match ordinary words. `skill:go` matches 2.7% of JobStreet listings and `skill:r` 2.9%, mostly through everyday use of the word. This is not fixed. Case-sensitive matching for names of two characters or fewer would be the obvious next step.
+
+**Model results after the rebuild.** The target now has 123 series instead of 109, so the error figures are not comparable across the two vocabularies.
+- Legacy vocabulary (section 4): model 5.6% worse than the best baseline, 0 of 3 folds won.
+- Taxonomy: model MAE 0.0362 against the best baseline (mean reversion) 0.0349, 3.8% worse, 0 of 3 folds won. The gate verdict is unchanged: **rejected**.
+- `market_signal` audit: median dispersion ratio 0.64 with 89% of series noise-like (9 series). Before: 0.81 and 92% (12 series).
+
+**Preview feed.** While no model is live, the gate-rejected candidate is still fitted on the full usable table, and its forecasts go to `data/preview_log.jsonl` with `validated: false` and `feed: "preview"`. They are scored into `data/preview_outcomes.jsonl`, separate from the live logs. Candidate models are in `src/models/preview_v<N>/` (git-ignored). Replay `2022-06-13` to `2023-09-11`, step 4:
+- 17 runs, all on the preview feed. The live forecast log was not written (it does not exist).
+- 2,091 preview forecasts (123 series x 17 runs). None abstained, so the abstention rules did not trigger on this dense data.
+- Direction (all 2,091): stable 1,992, declining 51, emerging 48. Signal quality: noise_like 2,072, trend_detected 19. Confidence: low 2,072, moderate 3, high 16.
+- 1,722 preview forecasts have matured, covering 14 target weeks that overlap. Their mean absolute error is 0.0375, against 0.0483 for persistence and 0.0605 for trend. The 10-90% interval covers 72% (nominal 80%). These numbers are retrospective, from overlapping targets, and unvalidated. They compare only against persistence and trend; the gate uses the stricter mean-reversion baseline, which the model does not beat (section 10, model results above), so this is not evidence of skill. They do not change the gate verdict. Nothing was tuned on them.
+
+**Tests.** 116 pass (`python3 -m pytest tests`). A bare `python3 -m pytest` also collects a vendored benchmark under `src/data/job_sdf/benchmark` and errors on collection. That predates this work.
+
+**Not verified.** Writing to a real Postgres (see `docs/INTEGRATION.md`); `embeddings/match.py` run against our rows.

@@ -16,5 +16,6 @@ data/
 
 # Generated model artefacts (rebuilt by the agent loop)
 src/models/forecaster_v*/
+src/models/preview_v*/
 src/models/version_log.json
 src/models/job_sdf/

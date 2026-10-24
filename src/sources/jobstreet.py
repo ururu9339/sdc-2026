@@ -16,7 +16,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.sources.common import gap_periods, long_frame, period_rows, select_periods, source_cfg, to_period, write_outputs
-from src.sources.taxonomy import family_of, load_lexicon, skill_flags
+from src.sources.taxonomy import job_of, load_vocabulary, skill_flags
 from src.training import config as C
 from src.training.config import ROOT, period_label
 
@@ -32,19 +32,19 @@ def prepare(raw: pd.DataFrame, granularity: str) -> pd.DataFrame:
     return df[df["period"].notna()].copy()
 
 
-def build_observations(df: pd.DataFrame, cfg: dict | None = None, lexicon: dict | None = None) -> tuple[pd.DataFrame, dict]:
+def build_observations(df: pd.DataFrame, cfg: dict | None = None, vocab=None) -> tuple[pd.DataFrame, dict]:
     cfg = cfg or source_cfg(SOURCE_ID)
     gran, source_id = cfg["granularity"], cfg["source_id"]
-    lexicon = lexicon if lexicon is not None else load_lexicon()
+    vocab = vocab if vocab is not None else load_vocabulary()
     totals_all = df.groupby("period").size()
     grid, dropped = select_periods(totals_all, cfg["min_period_postings"], gran, cfg["dense"])
     df = df[df["period"].isin(grid)]
     totals = totals_all.reindex(grid).astype(int)
     min_entity = cfg["min_entity_total"]
 
-    fam = family_of(df["role"]).fillna(family_of(df["job_title"]))
+    fam = job_of(df["role"], vocab.job_aliases).fillna(job_of(df["job_title"], vocab.job_aliases))
     text = df["job_title"].fillna("") + " " + df["descriptions"].fillna("")
-    skill_cnt = skill_flags(text, lexicon).groupby(df["period"]).sum().reindex(grid).fillna(0).astype(int)
+    skill_cnt = skill_flags(text, vocab.skill_aliases).groupby(df["period"]).sum().reindex(grid).fillna(0).astype(int)
     fam_cnt = (pd.DataFrame({"period": df["period"], "fam": fam}).dropna()
                .groupby(["period", "fam"]).size().unstack(fill_value=0).reindex(grid).fillna(0).astype(int))
     skill_cnt = skill_cnt.loc[:, skill_cnt.sum() >= min_entity]

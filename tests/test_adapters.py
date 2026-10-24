@@ -39,13 +39,13 @@ def test_jd_weekly_shares_graph_and_meta(tmp_path, jd_csv):
 
     obs = pd.read_csv(out, parse_dates=["period"]).set_index(["entity_id", "period"])
     wk = lambda d: pd.Timestamp(d)  # noqa: E731
-    assert obs.loc[("python", wk("2024-01-01")), "value"] == 1.0  # row 1 of 1 postings
-    assert obs.loc[("python", wk("2024-01-08")), "value"] == 0.5  # row 3 of 2 postings
-    assert obs.loc[("python", wk("2024-01-29")), "value"] == 0.5  # row 7 of 2
-    assert obs.loc[("data_analyst", wk("2024-01-08")), "value"] == 0.0  # present entity, zero that week
-    assert obs.loc[("accountant", wk("2024-01-08")), "value"] == 0.5  # row 2 of 2 (Role matched)
-    assert obs.loc[("accountant", wk("2024-01-22")), "support"] == 1
-    assert obs.loc[("data_analyst", wk("2024-01-15")), "value"] == 1.0  # Role empty-family -> Title fallback
+    assert obs.loc[("skill:python", wk("2024-01-01")), "value"] == 1.0  # row 1 of 1 postings
+    assert obs.loc[("skill:python", wk("2024-01-08")), "value"] == 0.5  # row 3 of 2 postings
+    assert obs.loc[("skill:python", wk("2024-01-29")), "value"] == 0.5  # row 7 of 2
+    assert obs.loc[("job:data_analyst", wk("2024-01-08")), "value"] == 0.0  # present entity, zero that week
+    assert obs.loc[("job:accountant", wk("2024-01-08")), "value"] == 0.5  # row 2 of 2 (Role matched)
+    assert obs.loc[("job:accountant", wk("2024-01-22")), "support"] == 1
+    assert obs.loc[("job:data_analyst", wk("2024-01-15")), "value"] == 1.0  # Role empty -> Job Title fallback
     assert obs["kind"].isin(["skill", "job"]).all()
 
     meta = json.loads(out.with_suffix(".meta.json").read_text())
@@ -56,11 +56,11 @@ def test_jd_weekly_shares_graph_and_meta(tmp_path, jd_csv):
 
     edges = pd.read_csv(graph).set_index(["job", "skill"])
     # data_analyst: rows 1, 4, 7 are dated and matched (the bad-date row is excluded)
-    assert edges.loc[("data_analyst", "python"), "n_job_postings"] == 3
-    assert edges.loc[("data_analyst", "python"), "n_cooccur"] == 2
-    assert edges.loc[("data_analyst", "python"), "weight"] == pytest.approx(2 / 3)
-    assert edges.loc[("data_analyst", "sql"), "weight"] == pytest.approx(1 / 3)
-    assert edges.loc[("accountant", "excel"), "weight"] == pytest.approx(1 / 3)
+    assert edges.loc[("job:data_analyst", "skill:python"), "n_job_postings"] == 3
+    assert edges.loc[("job:data_analyst", "skill:python"), "n_cooccur"] == 2
+    assert edges.loc[("job:data_analyst", "skill:python"), "weight"] == pytest.approx(2 / 3)
+    assert edges.loc[("job:data_analyst", "skill:sql"), "weight"] == pytest.approx(1 / 3)
+    assert edges.loc[("job:accountant", "skill:excel"), "weight"] == pytest.approx(1 / 3)
 
 
 def test_jd_chunking_does_not_change_output(tmp_path, jd_csv):
@@ -102,11 +102,11 @@ def test_job_market_shares_and_zero_fill(tmp_path):
     cfg = _cfg("market_signal", min_period_postings=1, min_entity_total=1)
     obs, meta = jm.build_observations(raw, cfg)
     obs = obs.set_index(["entity_id", "period"])
-    assert obs.loc[("ux_designer", "2024-01-01"), "value"] == 0.75  # 3 of 4 January rows
-    assert obs.loc[("data_analyst", "2024-01-01"), "value"] == 0.25
-    assert obs.loc[("data_analyst", "2024-02-01"), "value"] == 0.5  # 2 of 4 February rows (unknown ones count)
-    assert obs.loc[("ux_designer", "2024-02-01"), "value"] == 0  # contiguous month with no rows: zero
-    assert set(obs.index.get_level_values("entity_id")) == {"ux_designer", "data_analyst"}
+    assert obs.loc[("job:ux_designer", "2024-01-01"), "value"] == 0.75  # 3 of 4 January rows
+    assert obs.loc[("job:data_analyst", "2024-01-01"), "value"] == 0.25
+    assert obs.loc[("job:data_analyst", "2024-02-01"), "value"] == 0.5  # 2 of 4 February rows (unknown ones count)
+    assert obs.loc[("job:ux_designer", "2024-02-01"), "value"] == 0  # contiguous month with no rows: zero
+    assert set(obs.index.get_level_values("entity_id")) == {"job:ux_designer", "job:data_analyst"}
     assert meta["unmatched_occupations"] == ["Unknown Role"]
     assert obs["kind"].eq("job").all()
 

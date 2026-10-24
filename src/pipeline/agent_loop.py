@@ -10,6 +10,9 @@ act:      refit on the FULL table, walk-forward backtest, fixed gate (active pro
           passes. Then forecast with the live model (abstaining on thin series) and reconcile matured
           forecasts.
 log:      append-only forecast log, outcome log and run log.
+preview:  while NO validated live model exists, a gate-rejected candidate is still fitted on the full usable
+          table and its forecasts go to a SEPARATE preview log (validated: false, feed: "preview"), scored
+          in a separate preview outcome log. The live pointer stays null; live logs are never written here.
 `replay` re-runs the loop as if each period were 'today' (loaders are sliced to as_of), so continuous
 retraining can be demonstrated on the real data. Dates may be any day; they are snapped to the period.
 """
@@ -37,6 +40,8 @@ class AgentLoop:
         self.store = ObservationStore()
         self.forecast_log = AppendOnlyLog(C.FORECAST_LOG_PATH)
         self.outcome_log = AppendOnlyLog(C.OUTCOME_LOG_PATH)
+        self.preview_log = AppendOnlyLog(C.PREVIEW_LOG_PATH)
+        self.preview_outcome_log = AppendOnlyLog(C.PREVIEW_OUTCOME_LOG_PATH)
         self.run_log = AppendOnlyLog(C.RUN_LOG_PATH)
 
     # ---- perceive ----------------------------------------------------------------------
@@ -91,30 +96,56 @@ class AgentLoop:
                  "gate_profile": gate["profile"], "gate": gate,
                  "folds": folds.to_dict("records") if not folds.empty else [],
                  "sources_used": sorted(active), "audit": audit, "version": None, "status": "rejected"}
+        train = usable(feats)
+        train = train[train["y"].notna()]
         if gate["passed"]:
-            train = usable(feats)
-            train = train[train["y"].notna()]
             models = fit_models(train, cols)
             version = f"v{n_prev + 1}"
-            X = train[cols].astype(float)
-            imp = source_contributions(models, X, column_source_map(cols, self.registry)).abs().mean()
             entry.update(version=version, status="promoted", n_train_rows=len(train),
-                         source_importance={k: float(v) for k, v in imp.items()})
+                         source_importance=self._importance(models, train, cols))
             meta = {"version": version, "feature_columns": cols, "horizon_periods": C.HORIZON,
                     "trained_as_of": C.period_label(as_of), "gate_profile": gate["profile"], "gate": gate,
                     "disclaimer": self.registry["disclaimer"]}
             save_models(models, C.MODELS_DIR / f"forecaster_{version}", meta)
             vlog["live"] = version
+        elif C.PREVIEW_ENABLED and not vlog.get("live"):
+            entry.update(self._fit_preview(train, cols, as_of, gate, vlog))
         vlog["history"].append(entry)
         save_json(C.VERSION_LOG_PATH, vlog)
         return entry
 
-    def reconcile(self, feats: pd.DataFrame, as_of: pd.Timestamp) -> list[dict]:
-        """Score matured forecasts against what actually happened. Appends; never edits the forecast log."""
-        done = {r["forecast_id"] for r in self.outcome_log.read()}
+    def _importance(self, models, train: pd.DataFrame, cols: list[str]) -> dict:
+        X = train[cols].astype(float)
+        imp = source_contributions(models, X, column_source_map(cols, self.registry)).abs().mean()
+        return {k: float(v) for k, v in imp.items()}
+
+    def _fit_preview(self, train: pd.DataFrame, cols: list[str], as_of: pd.Timestamp, gate: dict, vlog: dict) -> dict:
+        """Fit the rejected candidate for the preview feed. Stored apart from the live models; never promoted."""
+        if train.empty:
+            return {"status": "rejected_preview", "preview_version": None, "preview_reason": "no usable training rows"}
+        n_prev = sum(1 for h in vlog["history"] if h.get("preview_version"))
+        pv = f"v{n_prev + 1}"
+        models = fit_models(train, cols)
+        dir_name = f"preview_{pv}"
+        meta = {"version": f"preview:{pv}", "feed": "preview", "validated": False, "preview_reason": gate["reason"],
+                "feature_columns": cols, "horizon_periods": C.HORIZON, "trained_as_of": C.period_label(as_of),
+                "gate_profile": gate["profile"], "gate": gate, "disclaimer": self.registry["disclaimer"]}
+        save_models(models, C.MODELS_DIR / dir_name, meta)
+        vlog["preview"] = dir_name
+        return {"status": "rejected_preview", "preview_version": f"preview:{pv}", "model_dir": dir_name,
+                "preview_reason": gate["reason"], "n_train_rows": len(train),
+                "source_importance": self._importance(models, train, cols)}
+
+    def reconcile(self, feats: pd.DataFrame, as_of: pd.Timestamp, feed: str = "live") -> list[dict]:
+        """Score matured forecasts against what actually happened. Appends; never edits the forecast log.
+        Preview forecasts are scored into their own outcome log, so live statistics never mix with them."""
+        preview = feed == "preview"
+        fc_log = self.preview_log if preview else self.forecast_log
+        oc_log = self.preview_outcome_log if preview else self.outcome_log
+        done = {r["forecast_id"] for r in oc_log.read()}
         actual = feats.set_index(["entity_id", "period"])["lvl"]
         out = []
-        for rec in self.forecast_log.read():
+        for rec in fc_log.read():
             if rec.get("status") != "ok" or rec["forecast_id"] in done:
                 continue
             target = C.parse_period_label(rec["target_period"])
@@ -129,9 +160,10 @@ class AgentLoop:
                         "target_period": rec["target_period"], "actual": y,
                         "abs_err": abs(y - rec["p50"]), "abs_err_persistence": abs(y),
                         "abs_err_trend": abs(y - rec["baseline_trend"]),
-                        "in_interval": bool(rec["p10"] <= y <= rec["p90"])})
+                        "in_interval": bool(rec["p10"] <= y <= rec["p90"]),
+                        **({"feed": "preview", "validated": False} if preview else {})})
         if out:
-            self.outcome_log.append_many(out)
+            oc_log.append_many(out)
         return out
 
     def drift_check(self) -> dict:
@@ -166,32 +198,49 @@ class AgentLoop:
 
         matured = self.reconcile(feats, as_of)
         run["outcomes_reconciled"] = len(matured)
+        run["preview_outcomes_reconciled"] = len(self.reconcile(feats, as_of, feed="preview"))
         retrain, why = self.decide(as_of, state, vlog, self.drift_check())
         run["decision"] = {"retrain": retrain, "why": why}
         if retrain:
             entry = self.retrain(feats, as_of, vlog, p["active"], records(summarise_audit(audit, self.registry)))
-            run["retrain"] = {"status": entry["status"], "version": entry["version"], "gate": entry["gate"],
+            run["retrain"] = {"status": entry["status"], "version": entry["version"],
+                              "preview_version": entry.get("preview_version"), "gate": entry["gate"],
                               "gate_profile": entry["gate_profile"]}
             state["last_trained_as_of"] = C.period_label(as_of)
             save_json(C.STATE_PATH, state)
-        if not vlog.get("live"):
-            run.update(status="no_live_model", reason="gate not passed yet; no forecasts issued")
-            self.run_log.append_many([run])
-            return run
+        if vlog.get("live"):
+            return self._issue(run, "live", f"forecaster_{vlog['live']}", as_of, feats, target_audit)
+        if C.PREVIEW_ENABLED and vlog.get("preview"):
+            return self._issue(run, "preview", vlog["preview"], as_of, feats, target_audit)
+        run.update(status="no_live_model", feed="none", reason="gate not passed yet; no forecasts issued")
+        self.run_log.append_many([run])
+        return run
 
-        models, meta = load_models(C.MODELS_DIR / f"forecaster_{vlog['live']}")
+    def _issue(self, run: dict, feed: str, model_dir: str, as_of: pd.Timestamp, feats: pd.DataFrame,
+               target_audit: pd.DataFrame) -> dict:
+        """Forecast with a stored model into the log of its feed. Abstention and signal rules are identical."""
+        models, meta = load_models(C.MODELS_DIR / model_dir)
         missing = set(meta["feature_columns"]) - set(feats.columns)
         if missing:
-            run.update(status="feature_mismatch", reason=f"live model needs {sorted(missing)}")
+            run.update(status="feature_mismatch", feed=feed, reason=f"{feed} model needs {sorted(missing)}")
             self.run_log.append_many([run])
             return run
-        existing = {r["forecast_id"] for r in self.forecast_log.read()}
+        preview = feed == "preview"
+        log = self.preview_log if preview else self.forecast_log
+        existing = {r["forecast_id"] for r in log.read()}
         fc = [f for f in make_forecasts(models, meta, feats, as_of, self.registry, audit=target_audit)
               if f["forecast_id"] not in existing]
-        self.forecast_log.append_many(fc)
+        if preview:
+            for f in fc:
+                f.update(validated=False, feed="preview", preview_reason=meta["preview_reason"])
+        log.append_many(fc)
         quality = {q: sum(f["signal_quality"] == q for f in fc) for q in ("noise_like", "trend_detected", "unknown")}
-        run.update(status="ok", live_version=vlog["live"], gate_profile=meta["gate_profile"], n_forecasts=len(fc),
+        run.update(status="ok", feed=feed, gate_profile=meta["gate_profile"], n_forecasts=len(fc),
                    n_abstained=sum(f["status"] != "ok" for f in fc), signal_quality=quality)
+        if preview:
+            run.update(preview_version=meta["version"], preview_reason=meta["preview_reason"])
+        else:
+            run["live_version"] = meta["version"]
         self.run_log.append_many([run])
         return run
 
@@ -204,7 +253,10 @@ class AgentLoop:
         out = self.outcome_log.read()
         s = {"live": vlog["live"], "gate_profile": C.ACTIVE_GATE_PROFILE, "attempts": len(vlog["history"]),
              "logs_intact": all(log.verify() for log in (self.forecast_log, self.outcome_log, self.run_log)),
-             "matured_forecasts": len(out)}
+             "matured_forecasts": len(out),
+             "preview_model": vlog.get("preview"), "preview_forecasts": len(self.preview_log.read()),
+             "preview_matured": len(self.preview_outcome_log.read()),
+             "preview_logs_intact": all(log.verify() for log in (self.preview_log, self.preview_outcome_log))}
         if out:
             s.update(live_mae=float(np.mean([r["abs_err"] for r in out])),
                      persistence_mae=float(np.mean([r["abs_err_persistence"] for r in out])),
@@ -234,7 +286,8 @@ def main() -> None:
 
 
 def save_summary(run: dict) -> str:
-    keys = ("as_of", "status", "reason", "decision", "live_version", "gate_profile", "n_forecasts", "n_abstained")
+    keys = ("as_of", "status", "feed", "reason", "decision", "live_version", "preview_version", "gate_profile",
+            "n_forecasts", "n_abstained")
     return " | ".join(f"{k}={run[k]}" for k in keys if k in run)
 
 

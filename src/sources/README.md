@@ -69,4 +69,4 @@ Each adapter reads its own parameters from its registry entry, writes `data/raw/
 - `job_descriptions.py` -> `job_postings` (target, weekly, dense). Also writes `data/processed/job_skill_graph.csv` (explanation only).
 - `jobstreet.py` -> `jobstreet_my` (weekly, sparse, CC BY 4.0).
 - `job_market.py` -> `market_signal` (monthly, occupation families only).
-- `taxonomy.py` holds the shared role families (`role_families.json`) and the skill extractor (`skills_lexicon.json`). Family ids and skill ids must not collide; `build_all` fails if they do.
+- `taxonomy.py` is the shared vocabulary: the teammate taxonomy in `embeddings/taxonomy/{skills,jobs}.csv` (override with `SDC_TAXONOMY_DIR`). Entity ids are the taxonomy ids verbatim (`skill:python`, `job:accountant`). Aliases are each entity's name and alt_labels, plus regex extras in `vocab_extra.json`. Jobs take the most specific matching alias (ties to the earlier row); skills take any match. `build_all` fails on a malformed or duplicate taxonomy, and `validate` rejects any skill or job id that the taxonomy does not know.

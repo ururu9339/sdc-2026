@@ -19,7 +19,9 @@ from src.training import config as C
 KINDS = {"skill", "job", "global"}
 
 
-def validate(df: pd.DataFrame, source: dict | None = None, target_entities: set | None = None) -> dict:
+def validate(df: pd.DataFrame, source: dict | None = None, target_entities: set | None = None,
+             vocabulary_ids: set | None = None) -> dict:
+    """vocabulary_ids: when given (the shared taxonomy), every skill/job entity_id must be one of them."""
     errors, warnings = [], []
     missing = [c for c in COLUMNS if c not in df.columns and c != "support"]
     if missing:
@@ -44,6 +46,11 @@ def validate(df: pd.DataFrame, source: dict | None = None, target_entities: set 
     bad_kind = set(df["kind"].dropna()) - KINDS
     if bad_kind:
         errors.append(f"unknown kind values {sorted(bad_kind)}; use skill|job (or 'global' for economy-wide)")
+    if vocabulary_ids is not None:
+        known = set(vocabulary_ids) | {GLOBAL_ID}
+        strays = sorted(set(df.loc[df["kind"].isin(["skill", "job"]), "entity_id"]) - known)
+        if strays:
+            errors.append(f"{len(strays)} entity ids are not in the shared taxonomy (e.g. {strays[:3]})")
     if source and source["source_id"] not in set(df["source_id"]):
         errors.append(f"no rows with source_id == {source['source_id']!r}")
 

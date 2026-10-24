@@ -9,8 +9,6 @@ Isolation: the environment can point the whole pipeline at another dataset witho
 Malaysian demo state (see README in src/sources):
     SDC_DATA_DIR    replaces <repo>/data        (raw, processed, logs, report all live below it)
     SDC_MODELS_DIR  replaces <repo>/src/models  (version log and saved models)
-    SDC_REGISTRY    replaces src/sources/sources_registry.json
-    PERIOD_FREQ     "W" (default) or "M"
     GATE_PROFILE    "demo" (default) or "production"
 Paths that can be overridden are read when the module is imported; functions that take a path default
 to None and read the module attribute at call time, so tests may monkeypatch them."""
@@ -36,11 +34,14 @@ PROCESSED_DIR = DATA_DIR / "processed"
 RAW_DIR = DATA_DIR / "raw"
 MODELS_DIR = _env_path("SDC_MODELS_DIR", ROOT / "src" / "models")
 REGISTRY_PATH = _env_path("SDC_REGISTRY", ROOT / "src" / "sources" / "sources_registry.json")
+TAXONOMY_DIR = _env_path("SDC_TAXONOMY_DIR", ROOT / "embeddings" / "taxonomy")
 
 OBSERVATIONS_PATH = PROCESSED_DIR / "observations.csv"
 STATE_PATH = DATA_DIR / "agent_state.json"
 FORECAST_LOG_PATH = DATA_DIR / "forecast_log.jsonl"
 OUTCOME_LOG_PATH = DATA_DIR / "forecast_outcomes.jsonl"
+PREVIEW_LOG_PATH = DATA_DIR / "preview_log.jsonl"  # unvalidated candidate forecasts; never the live log
+PREVIEW_OUTCOME_LOG_PATH = DATA_DIR / "preview_outcomes.jsonl"
 RUN_LOG_PATH = DATA_DIR / "agent_runs.jsonl"
 VERSION_LOG_PATH = MODELS_DIR / "version_log.json"
 REPORT_PATH = DATA_DIR / "model_report.json"
@@ -143,6 +144,9 @@ def span_end(start, granularity: str = "weekly"):
     return (pd.Period(pd.Timestamp(start), freq=freq) + 1).start_time
 
 
+PERIOD_DAYS = {"W": 7.0, "M": 30.44}  # nominal length of one model period, in days
+
+
 def ffill_periods(days: float) -> int:
     """Number of model periods a published figure is carried forward for `days` (at least one month/week)."""
     if PERIOD_FREQ == "W":
@@ -159,6 +163,10 @@ def parse_period_label(label, freq: str | None = None) -> pd.Timestamp:
     """Period start for a label or any date inside the period."""
     return to_period_start(pd.Timestamp(label), freq)
 
+
+# Preview feed: while no model is live, the gate-rejected candidate is still fitted and issued as clearly
+# labelled, unvalidated forecasts (separate log). Never written once a validated live model exists.
+PREVIEW_ENABLED = os.environ.get("PREVIEW_FORECASTS", "true").strip().lower() not in ("0", "false", "no", "off")
 
 # ---- model ------------------------------------------------------------------------------
 # Forecast target: change in log (smoothed) share of postings, HORIZON periods ahead.
@@ -235,3 +243,6 @@ def leading_sources(registry: dict) -> list[dict]:
 
 def enabled_sources(registry: dict) -> list[dict]:
     return [s for s in registry["sources"] if s.get("enabled", True)]
+
+# Descriptive snapshot: a block shorter than this many periods is too noisy to compare.
+SNAPSHOT_MIN_BLOCK_PERIODS = 4

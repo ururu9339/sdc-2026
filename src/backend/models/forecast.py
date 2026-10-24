@@ -30,6 +30,9 @@ class ForecastRecord(BaseModel):
     disclaimer: Optional[str] = None
     logged_at: Optional[str] = None
     hash: Optional[str] = None
+    feed: Optional[Literal["live", "preview"]] = None
+    validated: Optional[bool] = None
+    preview_reason: Optional[str] = None
 
 
 class GateSummary(BaseModel):
@@ -52,7 +55,27 @@ class GateSummary(BaseModel):
 
 class LiveForecastList(BaseModel):
     status: Literal["ok"] = "ok"
+    feed: Literal["live"] = "live"
+    validated: bool = True
+    banner: Optional[str] = None
     model_version: str
+    gate_profile: Optional[str] = None
+    as_of: Optional[str] = None
+    target_period: Optional[str] = None
+    horizon_periods: Optional[int] = None
+    disclaimer: Optional[str] = None
+    count: int
+    forecasts: list[ForecastRecord]
+
+
+class PreviewForecastList(BaseModel):
+    """Unvalidated candidate forecasts. Served only while no model has passed the gate."""
+    status: Literal["preview"] = "preview"
+    feed: Literal["preview"] = "preview"
+    validated: bool = False
+    banner: str
+    reason: Optional[str] = None
+    model_version: Optional[str] = None
     gate_profile: Optional[str] = None
     as_of: Optional[str] = None
     target_period: Optional[str] = None
@@ -64,6 +87,9 @@ class LiveForecastList(BaseModel):
 
 class NoLiveModel(BaseModel):
     status: Literal["no_live_model"] = "no_live_model"
+    feed: Literal["none"] = "none"
+    validated: bool = False
+    banner: Optional[str] = None
     reason: str
     gate: Optional[GateSummary] = None
     disclaimer: Optional[str] = None
@@ -73,7 +99,10 @@ class NoLiveModel(BaseModel):
 class EntityForecast(BaseModel):
     entity_id: str
     kind: Optional[str] = None
-    status: Literal["ok", "insufficient_data", "no_live_model"]
+    status: Literal["ok", "preview", "insufficient_data", "no_live_model"]
+    feed: Optional[Literal["live", "preview", "none"]] = None
+    validated: Optional[bool] = None
+    banner: Optional[str] = None
     reason: Optional[str] = None
     forecast: Optional[ForecastRecord] = None
     disclaimer: Optional[str] = None
@@ -124,10 +153,39 @@ class Drivers(BaseModel):
 class Explanation(BaseModel):
     entity_id: str
     kind: Optional[str] = None
-    status: Literal["ok", "insufficient_data", "no_live_model"]
+    status: Literal["ok", "preview", "insufficient_data", "no_live_model"]
+    feed: Literal["live", "preview", "none"] = "none"
+    validated: bool = False
+    banner: Optional[str] = None
     summary: str
     drivers: Drivers
     caveats: list[str]
+
+
+class SnapshotItem(BaseModel):
+    type: Literal["descriptive_not_forecast"] = "descriptive_not_forecast"
+    source_id: str
+    entity_id: str
+    kind: Optional[str] = None
+    name: Optional[str] = None
+    mean_share_first: float
+    mean_share_last: float
+    percent_change: Optional[float] = None
+    support: int
+    first_block: str
+    last_block: str
+
+
+class Snapshot(BaseModel):
+    type: Literal["descriptive_not_forecast"] = "descriptive_not_forecast"
+    status: Literal["ok", "no_data"]
+    banner: str
+    reason: Optional[str] = None
+    kind: Optional[str] = None
+    limit: int
+    sources: list[dict[str, Any]] = Field(default_factory=list)
+    count: int = 0
+    items: list[SnapshotItem] = Field(default_factory=list)
 
 
 class SourceInfo(BaseModel):

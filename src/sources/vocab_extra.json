@@ -1,0 +1,252 @@
+{
+  "_note": "Regex aliases carried over from the retired skills_lexicon.json and role_families.json. Only entries whose legacy id maps to a taxonomy id (same id after stripping _skill/_role, or the same normalised name) are kept. Each alias is a regex over lowercased text (skills) or normalised text (jobs), matched with alphanumeric boundaries. Literal names and alt_labels come from the taxonomy itself.",
+  "skill:python": [
+    "python"
+  ],
+  "skill:java": [
+    "java"
+  ],
+  "skill:javascript": [
+    "javascript",
+    "node\\.?js",
+    "react",
+    "angular",
+    "vue\\.?js"
+  ],
+  "skill:sql": [
+    "sql",
+    "mysql",
+    "postgres(ql)?",
+    "oracle db"
+  ],
+  "skill:php": [
+    "php",
+    "laravel"
+  ],
+  "skill:machine_learning": [
+    "machine learning",
+    "\\bml\\b",
+    "deep learning",
+    "tensorflow",
+    "pytorch"
+  ],
+  "skill:data_analysis": [
+    "data analy(sis|tics)",
+    "power ?bi",
+    "tableau"
+  ],
+  "skill:data_engineering": [
+    "data engineer",
+    "etl",
+    "data pipeline",
+    "spark",
+    "airflow"
+  ],
+  "skill:devops": [
+    "devops",
+    "docker",
+    "kubernetes",
+    "ci/cd",
+    "jenkins"
+  ],
+  "skill:cybersecurity": [
+    "cyber ?security",
+    "information security",
+    "penetration test",
+    "\\bsoc\\b"
+  ],
+  "skill:excel": [
+    "excel",
+    "spreadsheet"
+  ],
+  "skill:accounting": [
+    "accounting",
+    "bookkeeping",
+    "financial reporting",
+    "\\bgst\\b",
+    "taxation"
+  ],
+  "skill:project_management": [
+    "project management",
+    "\\bpmp\\b",
+    "scrum",
+    "agile"
+  ],
+  "skill:digital_marketing": [
+    "digital marketing",
+    "\\bseo\\b",
+    "social media",
+    "google ads"
+  ],
+  "skill:sales": [
+    "sales",
+    "business development"
+  ],
+  "skill:customer_service": [
+    "customer service",
+    "customer support",
+    "call cent(er|re)"
+  ],
+  "skill:communication": [
+    "communication skills",
+    "interpersonal"
+  ],
+  "skill:english": [
+    "english"
+  ],
+  "skill:mandarin": [
+    "mandarin",
+    "chinese"
+  ],
+  "skill:malay": [
+    "bahasa malaysia",
+    "bahasa melayu"
+  ],
+  "skill:supply_chain": [
+    "supply chain",
+    "logistics",
+    "warehouse",
+    "procurement"
+  ],
+  "skill:teaching": [
+    "teaching",
+    "lecturer",
+    "curriculum"
+  ],
+  "skill:data_visualization": [
+    "data visuali[sz]ation"
+  ],
+  "skill:financial_analysis": [
+    "financial analysis",
+    "financial modell?ing",
+    "financial planning"
+  ],
+  "skill:risk_management": [
+    "risk assessment",
+    "risk management"
+  ],
+  "skill:crm": [
+    "customer relationship",
+    "\\bcrm\\b",
+    "salesforce"
+  ],
+  "skill:git": [
+    "git",
+    "github"
+  ],
+  "skill:big_data": [
+    "big data",
+    "hadoop"
+  ],
+  "job:ux_designer": [
+    "\\bux\\b",
+    "\\bui\\b",
+    "user experience",
+    "user interface",
+    "interaction design",
+    "usability",
+    "product designer"
+  ],
+  "job:product_manager": [
+    "product (manager|owner|management)\\b"
+  ],
+  "job:data_scientist": [
+    "data scientist"
+  ],
+  "job:data_analyst": [
+    "data analy",
+    "business intelligence",
+    "\\bbi (analyst|developer|engineer)\\b",
+    "^analytics analyst"
+  ],
+  "job:software_engineer": [
+    "software",
+    "\\bjava\\b",
+    "javascript",
+    "\\bpython\\b",
+    "programmer",
+    "\\bdeveloper\\b",
+    "(back|front) ?end",
+    "full ?stack"
+  ],
+  "job:customer_service": [
+    "customer (service|support|success|care|relationship)",
+    "client (service|relationship|success)",
+    "call cent(er|re)",
+    "\\bcsr\\b"
+  ],
+  "job:accountant": [
+    "accountant",
+    "accounting",
+    "bookkeep",
+    "\\baudit",
+    "\\baccounts\\b",
+    "account (assistant|clerk|officer)"
+  ],
+  "job:financial_analyst": [
+    "financ",
+    "invest",
+    "portfolio",
+    "wealth",
+    "\\btax\\b",
+    "retirement planner",
+    "estate planner",
+    "banker",
+    "actuar"
+  ],
+  "job:business_analyst": [
+    "business analy",
+    "process analy",
+    "requirements? analy"
+  ],
+  "job:teacher": [
+    "teach",
+    "instructor",
+    "lecturer",
+    "tutor",
+    "curriculum",
+    "education",
+    "\\btrainer\\b"
+  ],
+  "job:electrical_engineer": [
+    "electric",
+    "electronic",
+    "power systems?",
+    "\\bplc\\b",
+    "instrumentation"
+  ],
+  "job:mechanical_engineer": [
+    "mechanical",
+    "manufacturing"
+  ],
+  "job:civil_engineer": [
+    "civil",
+    "structural",
+    "site engineer",
+    "project engineer",
+    "water resources",
+    "quantity surveyor",
+    "surveyor",
+    "construction"
+  ],
+  "job:process_engineer": [
+    "process engineer",
+    "chemical",
+    "production engineer"
+  ],
+  "job:it_support": [
+    "\\bit\\b",
+    "help ?desk",
+    "desktop support",
+    "technical support",
+    "information technology"
+  ],
+  "job:technician": [
+    "technician",
+    "technologist",
+    "maintenance",
+    "mechanic",
+    "electrician",
+    "installer"
+  ]
+}
