@@ -1,31 +1,16 @@
-"""Central settings: the time grid, model windows, the gate profiles and the agent loop.
-
-Everything in the model is measured in PERIODS of PERIOD_FREQ ("W" weekly, Monday start, the default;
-or "M" monthly, month start). A period is identified by its start date and labelled with an ISO date
-(YYYY-MM-DD). Sources keep their own native granularity (see the registry); the feature builder moves
-them onto the model grid.
-
-Isolation: the environment can point the whole pipeline at another dataset without touching the
-Malaysian demo state (see README in src/sources):
-    SDC_DATA_DIR    replaces <repo>/data        (raw, processed, logs, report all live below it)
-    SDC_MODELS_DIR  replaces <repo>/src/models  (version log and saved models)
-    GATE_PROFILE    "demo" (default) or "production"
-Without SDC_DATA_DIR, a deployment with no local data/ but a committed serving/ bundle serves the bundle
-(see resolve_layout).
-Paths that can be overridden are read when the module is imported; functions that take a path default
-to None and read the module attribute at call time, so tests may monkeypatch them."""
 from __future__ import annotations
 
 import json
 import math
 import os
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Mapping
 
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
-SERVING_DIR = ROOT / "serving"  # committed snapshot that the API serves when no local data/ exists (see export_bundle)
+SERVING_DIR = ROOT / "serving"
 BUNDLE_MANIFEST = "manifest.json"
 
 
@@ -35,14 +20,6 @@ def _env_path(name: str, default: Path) -> Path:
 
 
 def resolve_layout(environ: Mapping[str, str] | None = None, root: Path | None = None) -> dict:
-    """Where the API reads its runtime files from.
-
-    mode 'env'     SDC_DATA_DIR is set: that directory is used.
-    mode 'bundle'  SDC_DATA_DIR is unset, the repo data/ has no forecast or preview log, and
-                   <root>/serving/manifest.json exists: serving/ is used, and serving/models for models.
-    mode 'repo'    otherwise: <root>/data and <root>/src/models (the local working state).
-    SDC_MODELS_DIR, when set, always wins for the models directory.
-    """
     env = os.environ if environ is None else environ
     root = ROOT if root is None else Path(root)
     repo_data, serving = root / "data", root / "serving"
@@ -66,7 +43,7 @@ def resolve_layout(environ: Mapping[str, str] | None = None, root: Path | None =
 
 _LAYOUT = resolve_layout()
 DATA_DIR = _LAYOUT["data_dir"]
-DATA_LAYOUT = _LAYOUT["mode"]  # 'env' | 'bundle' | 'repo', reported by /health
+DATA_LAYOUT = _LAYOUT["mode"]
 PROCESSED_DIR = DATA_DIR / "processed"
 RAW_DIR = DATA_DIR / "raw"
 MODELS_DIR = _LAYOUT["models_dir"]
@@ -77,16 +54,16 @@ OBSERVATIONS_PATH = PROCESSED_DIR / "observations.csv"
 STATE_PATH = DATA_DIR / "agent_state.json"
 FORECAST_LOG_PATH = DATA_DIR / "forecast_log.jsonl"
 OUTCOME_LOG_PATH = DATA_DIR / "forecast_outcomes.jsonl"
-PREVIEW_LOG_PATH = DATA_DIR / "preview_log.jsonl"  # unvalidated candidate forecasts; never the live log
+PREVIEW_LOG_PATH = DATA_DIR / "preview_log.jsonl"
 PREVIEW_OUTCOME_LOG_PATH = DATA_DIR / "preview_outcomes.jsonl"
 RUN_LOG_PATH = DATA_DIR / "agent_runs.jsonl"
 VERSION_LOG_PATH = MODELS_DIR / "version_log.json"
 REPORT_PATH = DATA_DIR / "model_report.json"
 
-# ---- time grid -------------------------------------------------------------------------
-PERIOD_FREQ = os.environ.get("PERIOD_FREQ", "W")  # the model grid: "W" (weeks, Monday) or "M" (months)
+
+PERIOD_FREQ = os.environ.get("PERIOD_FREQ", "W")
 GRANULARITY_FREQ = {"weekly": "W", "monthly": "M", "quarterly": "Q", "annual": "Y"}
-GRANULARITY_SPAN_DAYS = {"weekly": 7, "monthly": 31, "quarterly": 92, "annual": 366}  # default ffill span
+GRANULARITY_SPAN_DAYS = {"weekly": 7, "monthly": 31, "quarterly": 92, "annual": 366}
 PERIODS_PER_YEAR = {"weekly": 52, "monthly": 12, "quarterly": 4, "annual": 1}
 
 _GATE_NOTE = {"production": "strict constraints for promotion to live use",
@@ -97,15 +74,14 @@ def _gate_profiles(**by_name: dict) -> dict:
     return {name: {"name": name, **params, "note": _GATE_NOTE[name]} for name, params in by_name.items()}
 
 
-# Everything denominated in periods, per model grid. "W" is the original weekly configuration.
 PERIOD_PROFILES = {
     "W": {
-        "horizon": 12,  # ~1 quarter
+        "horizon": 12,
         "smooth_window": 4,
-        "growth_lags": (4, 13, 26),  # the middle one is also the lead composite window
+        "growth_lags": (4, 13, 26),
         "z_lags": (13, 26),
         "vol_window": 13,
-        "min_history": 13,  # periods of target history before a row is usable for training
+        "min_history": 13,
         "support_window": 13,
         "retrain_every": 4,
         "abstain_min_obs": 26,
@@ -118,7 +94,7 @@ PERIOD_PROFILES = {
         ),
     },
     "M": {
-        "horizon": 3,  # one quarter
+        "horizon": 3,
         "smooth_window": 3,
         "growth_lags": (1, 3, 6),
         "z_lags": (3, 6),
@@ -146,7 +122,6 @@ def _freq(freq: str | None) -> str:
 
 
 def to_period_start(ts, freq: str | None = None):
-    """Start of the period containing `ts`. Series -> Series, DatetimeIndex -> DatetimeIndex, scalar -> Timestamp."""
     freq = _freq(freq)
     if isinstance(ts, pd.Series):
         return pd.to_datetime(ts).dt.to_period(freq).dt.start_time
@@ -156,57 +131,47 @@ def to_period_start(ts, freq: str | None = None):
 
 
 def shift_periods(ts, n: int, freq: str | None = None) -> pd.Timestamp:
-    """Start of the period `n` periods after the period containing `ts` (negative n goes back)."""
     freq = _freq(freq)
     return (pd.Period(to_period_start(ts, freq), freq=freq) + n).start_time
 
 
 def periods_between(a, b, freq: str | None = None) -> int:
-    """Whole periods from the period containing a to the period containing b."""
     freq = _freq(freq)
     return pd.Period(pd.Timestamp(b), freq=freq).ordinal - pd.Period(pd.Timestamp(a), freq=freq).ordinal
 
 
 def period_range(start, end, freq: str | None = None) -> pd.DatetimeIndex:
-    """Every period start from the period containing `start` to the period containing `end`."""
     freq = _freq(freq)
     return pd.period_range(to_period_start(start, freq), to_period_start(end, freq), freq=freq).start_time
 
 
 def span_end(start, granularity: str = "weekly"):
-    """First instant after the period that starts at `start` (vectorised for Series/Index)."""
     freq = GRANULARITY_FREQ[granularity]
     if isinstance(start, (pd.Series, pd.Index)):
         return (pd.PeriodIndex(pd.DatetimeIndex(pd.to_datetime(start)), freq=freq) + 1).start_time
     return (pd.Period(pd.Timestamp(start), freq=freq) + 1).start_time
 
 
-PERIOD_DAYS = {"W": 7.0, "M": 30.44}  # nominal length of one model period, in days
+PERIOD_DAYS = {"W": 7.0, "M": 30.44}
 
 
 def ffill_periods(days: float) -> int:
-    """Number of model periods a published figure is carried forward for `days` (at least one month/week)."""
     if PERIOD_FREQ == "W":
         return math.ceil(days / 7)
     return max(1, round(days / 30.44))
 
 
 def period_label(ts) -> str:
-    """ISO date label of the period start, e.g. '2024-01-29'."""
     return pd.Timestamp(ts).strftime("%Y-%m-%d")
 
 
 def parse_period_label(label, freq: str | None = None) -> pd.Timestamp:
-    """Period start for a label or any date inside the period."""
     return to_period_start(pd.Timestamp(label), freq)
 
 
-# Preview feed: while no model is live, the gate-rejected candidate is still fitted and issued as clearly
-# labelled, unvalidated forecasts (separate log). Never written once a validated live model exists.
 PREVIEW_ENABLED = os.environ.get("PREVIEW_FORECASTS", "true").strip().lower() not in ("0", "false", "no", "off")
 
-# ---- model ------------------------------------------------------------------------------
-# Forecast target: change in log (smoothed) share of postings, HORIZON periods ahead.
+
 HORIZON = _PROFILE["horizon"]
 SMOOTH_WINDOW = _PROFILE["smooth_window"]
 EPS = 1e-4
@@ -233,9 +198,7 @@ LGB_POINT_PARAMS = {
 LGB_ROUNDS = 250
 QUANTILES = (0.1, 0.9)
 
-# Gate profiles. The gate is fixed and simple: the candidate must beat the best naive baseline on
-# time-ordered held-out folds, under the constraints of the active profile. The model never grades itself.
-# Constraints are counted in periods of the active PERIOD_FREQ (see PERIOD_PROFILES).
+
 GATE_KEYS = ("n_folds", "fold_step", "min_train_periods", "min_folds", "mae_margin", "min_fold_win_rate",
              "coverage_range")
 GATE_PROFILES = _PROFILE["gate_profiles"]
@@ -248,21 +211,31 @@ def active_gate_profile() -> dict:
     return GATE_PROFILES[ACTIVE_GATE_PROFILE]
 
 
-# Abstention rules applied at forecast time.
 ABSTAIN = {
     "min_obs_periods": _PROFILE["abstain_min_obs"],
-    "min_mean_support": 15.0,  # mean raw mention count over the last SUPPORT_WINDOW periods
-    "max_interval_width": 1.2,  # log-growth units
-    "abstain_on_noise": False,  # True: series whose movement is within sampling noise get no forecast
+    "min_mean_support": 15.0,
+    "max_interval_width": 1.2,
+    "abstain_on_noise": False,
 }
 
-# Signal audit: is a series' period-to-period movement larger than binomial sampling noise?
-AUDIT = {"noise_ratio": 1.5, "min_periods": _PROFILE["audit_min_periods"]}
-DIRECTION_THRESHOLD = 0.10  # |median log growth| over the horizon to call emerging/declining
 
-# Agent loop
+AUDIT = {"noise_ratio": 1.5, "min_periods": _PROFILE["audit_min_periods"]}
+DIRECTION_THRESHOLD = 0.10
+
+
 RETRAIN_EVERY_PERIODS = _PROFILE["retrain_every"]
-DRIFT = {"min_matured": 40, "tolerance": 1.0}  # retrain early if live MAE > tolerance * baseline MAE (count of matured forecasts)
+DRIFT = {"min_matured": 40, "tolerance": 1.0}
+
+
+DEDUP = {"rel_tol": 1e-6, "min_periods": 13}
+DUPLICATE_CAVEAT = "identical series to {canon} in our data; this is one signal, not several"
+
+
+STALE_DAYS = 60
+
+
+def utc_today() -> date:
+    return datetime.now(timezone.utc).date()
 
 
 def load_registry(path: Path | None = None) -> dict:
@@ -281,5 +254,5 @@ def leading_sources(registry: dict) -> list[dict]:
 def enabled_sources(registry: dict) -> list[dict]:
     return [s for s in registry["sources"] if s.get("enabled", True)]
 
-# Descriptive snapshot: a block shorter than this many periods is too noisy to compare.
+
 SNAPSHOT_MIN_BLOCK_PERIODS = 4

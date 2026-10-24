@@ -1,7 +1,3 @@
-"""Preview feed in the agent loop, on a toy weekly target written to tmp_path.
-
-The gate verdict and the walk-forward folds are replaced through two seams on agent_loop (the gate is
-tested elsewhere): the preview path only needs 'rejected' or 'passed', and this keeps the tests fast."""
 import json
 
 import numpy as np
@@ -75,12 +71,12 @@ def test_rejected_gate_issues_preview_forecasts_only(toy):
     assert preview, "expected preview forecasts"
     assert all(r["validated"] is False and r["feed"] == "preview" for r in preview)
     assert all(r["preview_reason"] == REASON and r["gate_profile"] == "demo" for r in preview)
-    # the candidate is refitted on every run while no model is live, so each run gets its own preview version
+
     assert all(r["model_version"].startswith("preview:v") for r in preview)
     assert all(r["forecast_id"].startswith(r["model_version"] + ":") for r in preview)
     assert any(r["status"] == "ok" for r in preview)
     assert AppendOnlyLog(C.PREVIEW_LOG_PATH).verify()
-    # the live log is never written, and the live pointer stays null
+
     assert AppendOnlyLog(C.FORECAST_LOG_PATH).read() == []
     vlog = json.loads(C.VERSION_LOG_PATH.read_text())
     assert vlog["live"] is None
@@ -88,24 +84,24 @@ def test_rejected_gate_issues_preview_forecasts_only(toy):
     assert statuses and set(statuses) == {"rejected_preview"}
     assert all(h["version"] is None for h in vlog["history"])
     dirs = [h["model_dir"] for h in vlog["history"]]
-    assert dirs == [f"preview_v{i + 1}" for i in range(len(dirs))]  # preview_v1, preview_v2, ...
-    assert vlog["preview"] == dirs[-1]  # the pointer names the newest candidate
+    assert dirs == [f"preview_v{i + 1}" for i in range(len(dirs))]
+    assert vlog["preview"] == dirs[-1]
     meta = json.loads((C.MODELS_DIR / vlog["preview"] / "meta.json").read_text())
     assert meta["version"] == f"preview:v{len(dirs)}" and meta["validated"] is False
     assert meta["preview_reason"] == REASON
     assert not any((C.MODELS_DIR / f"forecaster_v{i}").exists() for i in range(1, 5))
-    # run log names the feed used
+
     feeds = [r["feed"] for r in AppendOnlyLog(C.RUN_LOG_PATH).read()]
     assert "preview" in feeds and "live" not in feeds
     assert all(r["status"] == "ok" for r in runs if r["feed"] == "preview")
 
 
 def test_preview_outcomes_go_to_their_own_log(toy):
-    _replay(30, 50)  # forecasts made at week 30 mature 12 weeks later
+    _replay(30, 50)
     outcomes = AppendOnlyLog(C.PREVIEW_OUTCOME_LOG_PATH).read()
     assert outcomes and all(o["feed"] == "preview" and o["validated"] is False for o in outcomes)
     assert AppendOnlyLog(C.PREVIEW_OUTCOME_LOG_PATH).verify()
-    assert not C.OUTCOME_LOG_PATH.exists()  # live outcome log untouched
+    assert not C.OUTCOME_LOG_PATH.exists()
 
 
 def test_preview_disabled_issues_nothing(toy, monkeypatch):
@@ -120,7 +116,7 @@ def test_passing_gate_is_live_and_never_writes_preview(toy):
     toy.state["passed"] = True
     runs = _replay(30, 32)
     live = AppendOnlyLog(C.FORECAST_LOG_PATH).read()
-    assert live and all("validated" not in r and "feed" not in r for r in live)  # live shape unchanged
+    assert live and all("validated" not in r and "feed" not in r for r in live)
     assert all(r["feed"] == "live" for r in runs if r.get("status") == "ok")
     assert not C.PREVIEW_LOG_PATH.exists()
     vlog = json.loads(C.VERSION_LOG_PATH.read_text())
@@ -132,6 +128,6 @@ def test_preview_forecasts_stop_when_a_live_model_appears(toy):
     _replay(30, 31)
     before = len(AppendOnlyLog(C.PREVIEW_LOG_PATH).read())
     toy.state["passed"] = True
-    _replay(32, 33)  # the gate now passes: live forecasts only from here on
+    _replay(32, 33)
     assert len(AppendOnlyLog(C.PREVIEW_LOG_PATH).read()) == before
     assert AppendOnlyLog(C.FORECAST_LOG_PATH).read()

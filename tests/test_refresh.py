@@ -1,6 +1,3 @@
-"""Refresh workflow: the lock, idempotence of the loop's writes (decide, _issue, reconcile), the refresh record,
-exit codes and refusals. The real replay is never run here: the loop is stubbed where it would be heavy, and the
-idempotence checks call the real methods on hand-written fixtures in tmp_path."""
 import json
 import subprocess
 import sys
@@ -17,7 +14,6 @@ from tests.conftest import build_env
 
 
 def _patch_logs(monkeypatch, tmp_path):
-    """Point every runtime path at tmp_path (build_env covers the main ones)."""
     monkeypatch.setattr(C, "OUTCOME_LOG_PATH", C.DATA_DIR / "forecast_outcomes.jsonl")
     monkeypatch.setattr(C, "PREVIEW_OUTCOME_LOG_PATH", C.DATA_DIR / "preview_outcomes.jsonl")
     monkeypatch.setattr(C, "RUN_LOG_PATH", C.DATA_DIR / "agent_runs.jsonl")
@@ -26,7 +22,6 @@ def _patch_logs(monkeypatch, tmp_path):
     (tmp_path / "raw").mkdir(exist_ok=True)
 
 
-# ---- the lock ----------------------------------------------------------------------------------------
 def test_lock_is_created_and_removed(tmp_path):
     path = tmp_path / "refresh.lock"
     with refresh.RefreshLock(path):
@@ -40,11 +35,11 @@ def test_fresh_lock_held_by_a_live_process_refuses(tmp_path):
     with pytest.raises(refresh.LockHeld):
         with refresh.RefreshLock(path):
             pass
-    assert path.exists()  # the other run's lock is left alone
+    assert path.exists()
 
 
 def test_lock_of_a_dead_process_is_taken_over(tmp_path):
-    proc = subprocess.Popen([sys.executable, "-c", "pass"])  # exits at once; its pid is no longer running
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
     proc.wait()
     path = tmp_path / "refresh.lock"
     path.write_text(json.dumps({"pid": proc.pid, "started_at": datetime.now(timezone.utc).isoformat()}))
@@ -73,9 +68,8 @@ def test_unreadable_lock_goes_stale_by_age(tmp_path):
     assert refresh._is_stale(path, datetime.now(timezone.utc)) is True
 
 
-# ---- idempotence of the loop's writes ----------------------------------------------------------------
 def test_decide_reuses_the_preview_fitted_for_the_same_as_of():
-    loop = AgentLoop.__new__(AgentLoop)  # decide reads only its arguments
+    loop = AgentLoop.__new__(AgentLoop)
     as_of = pd.Timestamp("2026-09-14")
     vlog = {"live": None, "preview": "preview_v1", "history": []}
     assert loop.decide(as_of, {"last_trained_as_of": "2026-09-14"}, vlog, {}) == \
@@ -93,13 +87,13 @@ def test_issuing_the_same_origin_twice_adds_no_forecast_records(tmp_path, monkey
             "horizon_periods": 12, "trained_as_of": "2026-09-14"}
     monkeypatch.setattr(al, "load_models", lambda path: (None, meta))
 
-    def fake_forecasts(models, meta_, feats, as_of_, registry, audit=None):
+    def fake_forecasts(models, meta_, feats, as_of_, registry, audit=None, duplicates=None):
         return [{"forecast_id": f"{meta_['version']}:job:new_entity:{C.period_label(as_of_)}", "status": "ok",
                  "signal_quality": "unknown", "entity_id": "job:new_entity", "as_of": C.period_label(as_of_)}]
     monkeypatch.setattr(al, "make_forecasts", fake_forecasts)
     loop = AgentLoop()
     feats = pd.DataFrame({"lvl": [1.0]})
-    before = len(AppendOnlyLog(C.PREVIEW_LOG_PATH).read())  # 3 fixture records
+    before = len(AppendOnlyLog(C.PREVIEW_LOG_PATH).read())
     loop._issue({}, "preview", "preview_v1", as_of, feats, pd.DataFrame())
     after_first = len(AppendOnlyLog(C.PREVIEW_LOG_PATH).read())
     loop._issue({}, "preview", "preview_v1", as_of, feats, pd.DataFrame())
@@ -123,7 +117,6 @@ def test_reconciling_twice_adds_no_outcomes(tmp_path, monkeypatch):
     assert len(AppendOnlyLog(C.PREVIEW_OUTCOME_LOG_PATH).read()) == 1
 
 
-# ---- the refresh itself (loop stubbed) -----------------------------------------------------------------
 class _FakeLoop:
     result: dict = {}
     calls: list = []
@@ -177,7 +170,7 @@ def test_failed_loop_writes_failed_record_releases_lock_and_exits_1(tmp_path, mo
     saved = json.loads((C.DATA_DIR / "last_refresh.json").read_text())
     assert saved["status"] == "failed" and saved["error"]["type"] == "RuntimeError"
     assert not (C.DATA_DIR / "refresh.lock").exists()
-    assert not bundle.exists()  # nothing is published from a failed run
+    assert not bundle.exists()
 
 
 def test_held_lock_exits_2_and_is_left_alone(tmp_path, monkeypatch):

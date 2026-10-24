@@ -1,4 +1,3 @@
-"""Which data the API reads: env override, serving bundle auto-detection, or the repo's local data/."""
 import subprocess
 import sys
 from pathlib import Path

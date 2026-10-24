@@ -1,7 +1,3 @@
-"""Shared vocabulary from the teammate taxonomy: loading, aliases and matching rules.
-
-Tiny hand-written taxonomies live in tmp_path. The real taxonomy is checked only for its structure and for
-the market occupations the adapters depend on."""
 from pathlib import Path
 
 import numpy as np
@@ -32,7 +28,6 @@ def _job(id_, name, alts=""):
     return f'{id_},"{name}",job,1234,"{alts}",desc'
 
 
-# ---- the real taxonomy --------------------------------------------------------------------
 def test_real_taxonomy_loads_with_kind_from_the_prefix():
     v = T.load_vocabulary()
     assert len(v.ids("skill")) == 108 and len(v.ids("job")) == 56
@@ -45,7 +40,7 @@ def test_real_taxonomy_loads_with_kind_from_the_prefix():
 def test_real_extras_are_migrated_only_for_taxonomy_ids():
     extra = T.load_extra()
     assert set(extra) <= T.load_vocabulary().ids("skill") | T.load_vocabulary().ids("job")
-    # 28 legacy skills and 16 legacy families had a taxonomy counterpart; the rest were dropped
+
     assert sum(k.startswith("skill:") for k in extra) == 28 and sum(k.startswith("job:") for k in extra) == 16
 
 
@@ -64,11 +59,10 @@ def test_market_occupations_under_the_taxonomy():
     assert got[:4] == ["job:ux_designer", "job:product_manager", "job:financial_analyst", "job:data_analyst"]
     assert got[4:7] == ["job:ml_engineer", "job:devops_engineer", "job:software_engineer"]
     assert got[10:] == ["job:data_scientist", "job:business_analyst"]
-    # the three legacy families with no taxonomy counterpart stay unmatched, and are reported by the adapter
+
     assert all(pd.isna(x) for x in got[7:10])
 
 
-# ---- loading and validation ---------------------------------------------------------------
 def test_duplicate_id_is_rejected(tmp_path):
     d = _tax_dir(tmp_path / "t", [_skill("skill:python", "Python")], [_job("job:x", "X"), _job("job:x", "X2")])
     with pytest.raises(ValueError, match="duplicate taxonomy ids"):
@@ -108,10 +102,9 @@ def test_validator_flags_ids_outside_the_taxonomy():
                        "support": [5, 5]})
     res = validate(df, {"source_id": "p", "granularity": "weekly"}, vocabulary_ids={"skill:python"})
     assert not res["ok"] and any("not in the shared taxonomy" in e for e in res["errors"])
-    assert validate(df, {"source_id": "p", "granularity": "weekly"})["ok"]  # no vocabulary given: no check
+    assert validate(df, {"source_id": "p", "granularity": "weekly"})["ok"]
 
 
-# ---- aliases and matching ------------------------------------------------------------------
 @pytest.fixture
 def tiny(tmp_path, monkeypatch):
     d = _tax_dir(tmp_path / "t",
@@ -131,7 +124,7 @@ def test_skill_names_and_alt_labels_match_with_word_boundaries(tiny):
     flags = T.skill_flags(text, tiny.skill_aliases)
     assert flags["skill:sql"].tolist() == [True, True, False, False, False]
     assert flags["skill:python"].tolist() == [False, False, True, False, False]
-    assert flags["skill:csharp"].tolist() == [False, False, False, True, False]  # punctuation is literal
+    assert flags["skill:csharp"].tolist() == [False, False, False, True, False]
     assert flags.dtypes.unique().tolist() == [np.dtype(bool)]
     assert flags.index.equals(text.index)
 
@@ -151,7 +144,7 @@ def test_jobs_are_matched_on_normalised_text(tiny):
 
 
 def test_most_specific_job_alias_wins_not_file_order(tiny):
-    # 'Developer' is listed before 'Web Developer' in jobs.csv; the longer alias must still win
+
     got = T.job_of(pd.Series(["Web Developer", "frontend developer", "Developer", "Senior Developer"]), tiny.job_aliases)
     assert got.tolist() == ["job:web_developer", "job:web_developer", "job:generic_dev", "job:generic_dev"]
 

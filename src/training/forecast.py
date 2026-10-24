@@ -1,13 +1,10 @@
-"""Turn a feature table + a trained model into forecast records, with abstention.
-
-Qwen never sets a number: explanations are generated downstream from these structured fields."""
 from __future__ import annotations
 
 import pandas as pd
 
 from src.training.baselines import predict_baselines
-from src.training.config import (ABSTAIN, AUDIT, DIRECTION_THRESHOLD, GROWTH_LAGS, HORIZON, SUPPORT_WINDOW,
-                                 period_label, shift_periods, to_period_start)
+from src.training.config import (ABSTAIN, AUDIT, DIRECTION_THRESHOLD, DUPLICATE_CAVEAT, GROWTH_LAGS, HORIZON,
+                                 SUPPORT_WINDOW, period_label, shift_periods, to_period_start)
 from src.training.features import column_source_map
 from src.training.train import predict, source_contributions
 
@@ -23,8 +20,6 @@ def _direction(p50: float, p10: float, p90: float) -> tuple[str, str]:
 
 
 def _signal_quality(audit: pd.DataFrame | None, ent) -> tuple[str, float | None]:
-    """'noise_like' when the series' movement is within sampling noise, 'trend_detected' when it exceeds
-    noise (variation is larger than sampling alone explains, not a verified trend), else 'unknown'."""
     if audit is None or ent not in audit.index:
         return "unknown", None
     r = audit.loc[ent]
@@ -34,9 +29,34 @@ def _signal_quality(audit: pd.DataFrame | None, ent) -> tuple[str, float | None]
     return ("noise_like" if r["noise_like"] else "trend_detected"), float(dr)
 
 
+COPIED_FROM_CANONICAL = ("status", "reason", "p50", "p10", "p90", "direction", "baseline_persistence", "baseline_trend")
+
+
+def _apply_duplicates(out: list[dict], duplicates: list[dict], base: dict) -> None:
+    by_ent = {r["entity_id"]: r for r in out}
+    for g in duplicates:
+        canon_id = g["canonical"]
+        canon = by_ent.get(canon_id)
+        if canon is None:
+            continue
+        group = list(g["members"])
+        canon.update(duplicate_group=group, shares_signal_with=None)
+        for m in group:
+            if m == canon_id:
+                continue
+            rec = {**base, "entity_id": m, "kind": g.get("member_kinds", {}).get(m, canon.get("kind")),
+                   "forecast_id": f"{base['model_version']}:{m}:{base['as_of']}",
+                   "signal_quality": canon.get("signal_quality"), "dispersion_ratio": canon.get("dispersion_ratio"),
+                   **{k: canon[k] for k in COPIED_FROM_CANONICAL if k in canon}}
+            if rec.get("status") == "ok":
+                rec["confidence"] = "low"
+            rec.update(shares_signal_with=canon_id, duplicate_group=group, source_contributions=None,
+                       caveat=DUPLICATE_CAVEAT.format(canon=canon_id))
+            out.append(rec)
+
+
 def make_forecasts(models, meta: dict, df: pd.DataFrame, as_of, registry: dict, horizon: int = HORIZON,
-                   audit: pd.DataFrame | None = None) -> list[dict]:
-    """audit: target-source rows of signal_audit, indexed by entity_id (optional)."""
+                   audit: pd.DataFrame | None = None, duplicates: list[dict] | None = None) -> list[dict]:
     as_of = to_period_start(pd.Timestamp(as_of))
     cols = meta["feature_columns"]
     cur = df[df["period"] == as_of].set_index("entity_id")
@@ -81,8 +101,10 @@ def make_forecasts(models, meta: dict, df: pd.DataFrame, as_of, registry: dict, 
                 continue
             direction, conf = _direction(p50, p10, p90)
             if rec["signal_quality"] == "noise_like":
-                conf = "low"  # movement is indistinguishable from sampling noise
+                conf = "low"
             rec.update(status="ok", p50=p50, p10=p10, p90=p90, direction=direction, confidence=conf,
                        baseline_persistence=float(bl["persistence"][i]), baseline_trend=float(bl["trend"][i]),
                        source_contributions={k: float(v) for k, v in contrib.loc[ent].items()})
+    if duplicates:
+        _apply_duplicates(out, duplicates, base)
     return out

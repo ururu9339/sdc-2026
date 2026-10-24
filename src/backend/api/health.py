@@ -1,4 +1,3 @@
-"""GET /health and GET /api/v1/health. Always HTTP 200; the body says what is ready and what is served."""
 from __future__ import annotations
 
 import importlib.util
@@ -27,7 +26,6 @@ def _bundle_summary() -> BundleSummary | None:
 
 
 def _qwen_available() -> bool:
-    """The Qwen/pgvector matcher needs DATABASE_URL, psycopg and the embeddings package. Checked, not imported."""
     if not os.environ.get("DATABASE_URL"):
         return False
     try:
@@ -51,13 +49,15 @@ def get_health() -> Health:
     try:
         facts = store.health_facts()
         ready = True
-    except Exception:  # reported as not ready; the exception text is not exposed
-        facts = {"live_model": None, "feed": "none", "forecast_as_of": None, "n_forecasts": 0,
+    except Exception:
+        facts = {"live_model": None, "feed": "none", "forecast_as_of": None, "forecast_age_days": None,
+                 "stale": None, "n_forecasts": 0,
                  "gate_profile": C.ACTIVE_GATE_PROFILE, "last_gate": {"passed": None, "reason": "unavailable"},
                  "sources_with_data": []}
         ready = False
     data = HealthData(
         live_model=facts["live_model"], feed=facts["feed"], forecast_as_of=facts["forecast_as_of"],
+        forecast_age_days=facts.get("forecast_age_days"), stale=facts.get("stale"),
         n_forecasts=facts["n_forecasts"], gate_profile=facts["gate_profile"],
         last_gate=LastGate(**facts["last_gate"]), data_layout=C.DATA_LAYOUT, bundle=_bundle_summary(),
         sources_with_data=facts["sources_with_data"],

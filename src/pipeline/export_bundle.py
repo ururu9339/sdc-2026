@@ -1,24 +1,3 @@
-"""Write the serving bundle: the committed snapshot the API serves on a deployment with no local data/ folder.
-
-    python3 -m src.pipeline.export_bundle [--out DIR]
-
-The bundle holds ONLY what the API reads, laid out so that SDC_DATA_DIR=<bundle> and SDC_MODELS_DIR=<bundle>/models
-work (and so that resolve_layout picks it up when no data/ exists):
-
-    manifest.json                     what is in the bundle, sha256 and sizes, row counts, feed, validated flag
-    forecast_log.jsonl                LIVE feed only: the newest as_of records, re-chained (hash chain verifies)
-    preview_log.jsonl                 PREVIEW feed only: the newest as_of records, re-chained
-    processed/job_skill_graph.csv     the measured job-skill graph (explanations, offline matcher)
-    processed/observations.csv        target-source rows, plus rows of every enabled leading source that has data
-    raw/<source>.csv                  the best-tier leading source's raw file (for /snapshot), nothing else
-    model_report.json                 model report (timeline and audit summary)
-    models/version_log.json           the last KEEP_VERSIONS attempts, plus the live and preview entries
-    models/forecaster_<live>/meta.json  only when a live model exists
-
-It never contains src/data, CVs, the candidates database, models' weights or secrets. The bundle is a SNAPSHOT:
-it is written from data/ by src.pipeline.refresh, and the API serves it without recomputing anything. If the total
-exceeds MAX_BYTES, the export fails and the previous bundle is left in place.
-"""
 from __future__ import annotations
 
 import argparse
@@ -35,7 +14,7 @@ import pandas as pd
 from src.pipeline.store import AppendOnlyLog, load_json, save_json, write_chain
 from src.training import config as C
 
-MAX_BYTES = 5 * 1024 * 1024  # hard limit for everything in serving/, manifest included
+MAX_BYTES = 5 * 1024 * 1024
 KEEP_VERSIONS = 5
 NOTE = ("snapshot for serving: the files the API reads, written by src.pipeline.refresh from the local data/ folder. "
         "Not a full copy of the data and not a re-computation; regenerate it to refresh.")
@@ -55,13 +34,12 @@ def _sha256(path: Path) -> str:
 
 
 def active_feed() -> dict:
-    """Which feed the API would serve from the local state: live, preview or none."""
     vlog = load_json(C.VERSION_LOG_PATH, {"live": None, "history": []})
     if vlog.get("live"):
         return {"feed": "live", "log": C.FORECAST_LOG_PATH, "outcomes": C.OUTCOME_LOG_PATH,
                 "model_version": vlog["live"], "name": "forecast_log.jsonl"}
     if C.PREVIEW_ENABLED and AppendOnlyLog(C.PREVIEW_LOG_PATH).read():
-        # the preview model directory is named preview_v<N>; the record label is preview:v<N>
+
         model_dir = vlog.get("preview") or ""
         label = f"preview:{model_dir.removeprefix('preview_')}" if model_dir else None
         return {"feed": "preview", "log": C.PREVIEW_LOG_PATH, "outcomes": C.PREVIEW_OUTCOME_LOG_PATH,
@@ -87,8 +65,6 @@ def _outcome_summary(path: Path | None, feed: str) -> dict:
 
 
 def leading_sources_with_raw(registry: dict) -> list[dict]:
-    """The leading sources the snapshot can use: enabled, with a non-empty raw file, best tier only (the same
-    rule as forecast_store.snapshot)."""
     present = []
     for s in C.leading_sources(registry):
         raw = C.RAW_DIR / f"{s['source_id']}.csv"
@@ -117,7 +93,6 @@ def _version_log_trimmed(live: str | None, preview_dir: str | None) -> dict:
 
 
 def _write_tree(stage: Path, now: datetime) -> dict:
-    """Write every bundle file into `stage` (an empty directory). Returns the facts for the manifest."""
     registry = C.load_registry()
     active = active_feed()
     facts: dict = {"feed": active["feed"], "model_version": active["model_version"], "row_counts": {}}
@@ -186,8 +161,6 @@ def _files(stage: Path) -> list[Path]:
 
 
 def build_bundle(out_dir: Path | None = None, *, now: datetime | None = None, max_bytes: int = MAX_BYTES) -> dict:
-    """Write the bundle to `out_dir` (default <repo>/serving) and return its manifest. Fails, leaving the previous
-    bundle untouched, when the result is larger than max_bytes or a chain does not verify."""
     now = now or datetime.now(timezone.utc)
     out_dir = Path(out_dir) if out_dir is not None else C.SERVING_DIR
     out_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -215,14 +188,14 @@ def build_bundle(out_dir: Path | None = None, *, now: datetime | None = None, ma
             "note": NOTE,
         }
         manifest["total_bytes"] = total
-        for _ in range(10):  # the manifest counts its own bytes; iterate until the figure is stable
+        for _ in range(10):
             text = json.dumps(manifest, indent=2, default=str) + "\n"
             if manifest["total_bytes"] == total + len(text.encode()):
                 break
             manifest["total_bytes"] = total + len(text.encode())
         text = json.dumps(manifest, indent=2, default=str) + "\n"
         (stage / "manifest.json").write_text(text)
-        stage.chmod(0o755)  # mkdtemp creates 0700; the committed directory should be ordinary
+        stage.chmod(0o755)
         actual = sum(p.stat().st_size for p in stage.rglob("*") if p.is_file())
         if actual > max_bytes:
             raise BundleError(f"serving bundle is {actual} bytes, over the {max_bytes}-byte limit; "
@@ -248,7 +221,7 @@ def manifest_sha256(out_dir: Path | None = None) -> str | None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(description="Write the serving bundle from the current state")
     ap.add_argument("--out", help="directory to write (default: <repo>/serving)")
     a = ap.parse_args(argv)
     try:

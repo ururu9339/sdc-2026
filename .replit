@@ -1,0 +1,15 @@
+modules = ["python-3.12", "nodejs-24"]
+run = ["sh", "-c", "pip install -q -r requirements.txt && ([ -f frontend/dist/index.html ] || (cd frontend && npx --yes pnpm@10.34.8 install --frozen-lockfile && npx --yes pnpm@10.34.8 build)) && uvicorn src.backend.main:app --host 0.0.0.0 --port 8000"]
+
+[nix]
+channel = "stable-24_05"
+packages = ["tesseract", "poppler_utils"]
+
+[deployment]
+deploymentTarget = "autoscale"
+build = ["sh", "-c", "pip install -r requirements.txt && cd frontend && npx --yes pnpm@10.34.8 install --frozen-lockfile && npx --yes pnpm@10.34.8 build"]
+run = ["sh", "-c", "uvicorn src.backend.main:app --host 0.0.0.0 --port 8000"]
+
+[[ports]]
+localPort = 8000
+externalPort = 80

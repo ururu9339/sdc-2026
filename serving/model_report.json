@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-24T17:24:44.355467+00:00",
+  "generated_at": "2026-10-24T19:35:02.501072+00:00",
   "as_of": "2023-09-11",
   "target_source": "job_postings",
   "gate_profile": "demo",
@@ -94,44 +94,44 @@
     {
       "fold": 0,
       "cutoff": "2023-03-20T00:00:00.000",
-      "n_test": 1599,
-      "n_train": 6642,
-      "mae_model": 0.0360883436,
-      "mae_persistence": 0.0463062564,
-      "mae_trend": 0.0583548969,
-      "mae_damped_trend": 0.0517653219,
-      "mae_mean_reversion": 0.0340830231,
-      "mae_half_reversion": 0.0378979943,
-      "coverage": 0.7579737336,
-      "dir_acc_model": 0.7217010632
+      "n_test": 1469,
+      "n_train": 6102,
+      "mae_model": 0.0343184979,
+      "mae_persistence": 0.0437513289,
+      "mae_trend": 0.0549244712,
+      "mae_damped_trend": 0.0487867116,
+      "mae_mean_reversion": 0.0328539559,
+      "mae_half_reversion": 0.0362251134,
+      "coverage": 0.747447243,
+      "dir_acc_model": 0.7215793057
     },
     {
       "fold": 1,
       "cutoff": "2022-12-19T00:00:00.000",
-      "n_test": 1599,
-      "n_train": 5043,
-      "mae_model": 0.0332337356,
-      "mae_persistence": 0.0476411241,
-      "mae_trend": 0.0610038832,
-      "mae_damped_trend": 0.0536232375,
-      "mae_mean_reversion": 0.0323254059,
-      "mae_half_reversion": 0.0368943832,
-      "coverage": 0.7886178862,
-      "dir_acc_model": 0.7648530331
+      "n_test": 1469,
+      "n_train": 4633,
+      "mae_model": 0.0304381105,
+      "mae_persistence": 0.0447447587,
+      "mae_trend": 0.0585983654,
+      "mae_damped_trend": 0.0510198583,
+      "mae_mean_reversion": 0.0293710529,
+      "mae_half_reversion": 0.0339107602,
+      "coverage": 0.7950987066,
+      "dir_acc_model": 0.768550034
     },
     {
       "fold": 2,
       "cutoff": "2022-09-19T00:00:00.000",
-      "n_test": 1599,
-      "n_train": 3444,
-      "mae_model": 0.0394191587,
-      "mae_persistence": 0.0512612382,
-      "mae_trend": 0.0653435244,
-      "mae_damped_trend": 0.057645292,
-      "mae_mean_reversion": 0.0383434702,
-      "mae_half_reversion": 0.0421995933,
-      "coverage": 0.722326454,
-      "dir_acc_model": 0.7054409006
+      "n_test": 1469,
+      "n_train": 3164,
+      "mae_model": 0.0370369411,
+      "mae_persistence": 0.047416251,
+      "mae_trend": 0.060897471,
+      "mae_damped_trend": 0.0535211558,
+      "mae_mean_reversion": 0.0358981793,
+      "mae_half_reversion": 0.0390486685,
+      "coverage": 0.7317903336,
+      "dir_acc_model": 0.7038801906
     }
   ],
   "gate": {
@@ -155,15 +155,15 @@
       "calibrated": true
     },
     "n_folds": 3,
-    "model_mae": 0.03624707928332942,
+    "model_mae": 0.03393118316702755,
     "best_baseline": "mean_reversion",
-    "best_baseline_mae": 0.03491729976536811,
-    "improvement_pct": -3.8083687080529005,
+    "best_baseline_mae": 0.03270772936309548,
+    "improvement_pct": -3.740564777060018,
     "fold_win_rate": 0.0,
-    "coverage": 0.7563060245987075,
+    "coverage": 0.7581120943952803,
     "reason": "failed: beats_baseline, fold_win_rate"
   },
-  "gate_verdict": "GATE REJECTED under the DEMO profile (relaxed constraints; sources are weak proxies): model MAE 0.0362 is not at least 0% below the best baseline 'mean_reversion' (0.0349); improvement -3.8%; model beat the baseline in 0% of folds (need 50%)\n  folds=3, model MAE=0.0362, best baseline 'mean_reversion'=0.0349",
+  "gate_verdict": "GATE REJECTED under the DEMO profile (relaxed constraints; sources are weak proxies): model MAE 0.0339 is not at least 0% below the best baseline 'mean_reversion' (0.0327); improvement -3.7%; model beat the baseline in 0% of folds (need 50%)\n  folds=3, model MAE=0.0339, best baseline 'mean_reversion'=0.0327",
   "ablation": [
     {
       "config": "all_sources",
@@ -173,10 +173,10 @@
       "status": "ok",
       "n_features": 21,
       "n_folds": 3,
-      "model_mae": 0.0362470793,
+      "model_mae": 0.0339311832,
       "best_baseline": "mean_reversion",
-      "best_baseline_mae": 0.0349172998,
-      "improvement_pct": -3.8083687081,
+      "best_baseline_mae": 0.0327077294,
+      "improvement_pct": -3.7405647771,
       "passed": false,
       "gate_profile": "demo"
     },
@@ -203,10 +203,10 @@
       "status": "ok",
       "n_features": 15,
       "n_folds": 3,
-      "model_mae": 0.0359322635,
+      "model_mae": 0.0338344937,
       "best_baseline": "mean_reversion",
-      "best_baseline_mae": 0.0349172998,
-      "improvement_pct": -2.9067645457,
+      "best_baseline_mae": 0.0327077294,
+      "improvement_pct": -3.444948248,
       "passed": false,
       "gate_profile": "demo"
     },
@@ -218,13 +218,122 @@
       "status": "ok",
       "n_features": 15,
       "n_folds": 3,
-      "model_mae": 0.0359322635,
+      "model_mae": 0.0338344937,
       "best_baseline": "mean_reversion",
-      "best_baseline_mae": 0.0349172998,
-      "improvement_pct": -2.9067645457,
+      "best_baseline_mae": 0.0327077294,
+      "improvement_pct": -3.444948248,
       "passed": false,
       "gate_profile": "demo"
     }
   ],
-  "source_importance": null
+  "source_importance": null,
+  "duplicates": {
+    "groups": [
+      {
+        "canonical": "job:devops_engineer",
+        "members": [
+          "job:devops_engineer",
+          "skill:gcp",
+          "skill:infra_as_code",
+          "skill:linux"
+        ],
+        "kinds": [
+          "job",
+          "skill"
+        ],
+        "member_kinds": {
+          "job:devops_engineer": "job",
+          "skill:gcp": "skill",
+          "skill:infra_as_code": "skill",
+          "skill:linux": "skill"
+        },
+        "shared_periods": 105
+      },
+      {
+        "canonical": "job:mobile_developer",
+        "members": [
+          "job:mobile_developer",
+          "skill:kotlin",
+          "skill:mobile_dev",
+          "skill:swift"
+        ],
+        "kinds": [
+          "job",
+          "skill"
+        ],
+        "member_kinds": {
+          "job:mobile_developer": "job",
+          "skill:kotlin": "skill",
+          "skill:mobile_dev": "skill",
+          "skill:swift": "skill"
+        },
+        "shared_periods": 105
+      },
+      {
+        "canonical": "job:web_developer",
+        "members": [
+          "job:web_developer",
+          "skill:vue"
+        ],
+        "kinds": [
+          "job",
+          "skill"
+        ],
+        "member_kinds": {
+          "job:web_developer": "job",
+          "skill:vue": "skill"
+        },
+        "shared_periods": 105
+      },
+      {
+        "canonical": "skill:aws",
+        "members": [
+          "skill:aws",
+          "skill:azure"
+        ],
+        "kinds": [
+          "skill"
+        ],
+        "member_kinds": {
+          "skill:aws": "skill",
+          "skill:azure": "skill"
+        },
+        "shared_periods": 105
+      },
+      {
+        "canonical": "skill:deep_learning",
+        "members": [
+          "skill:deep_learning",
+          "skill:machine_learning"
+        ],
+        "kinds": [
+          "skill"
+        ],
+        "member_kinds": {
+          "skill:deep_learning": "skill",
+          "skill:machine_learning": "skill"
+        },
+        "shared_periods": 105
+      },
+      {
+        "canonical": "skill:docker",
+        "members": [
+          "skill:docker",
+          "skill:kubernetes"
+        ],
+        "kinds": [
+          "skill"
+        ],
+        "member_kinds": {
+          "skill:docker": "skill",
+          "skill:kubernetes": "skill"
+        },
+        "shared_periods": 105
+      }
+    ],
+    "entities_in_groups": 16,
+    "entities_collapsed": 10,
+    "series_before": 123,
+    "series_after": 113
+  }
 }

@@ -12,7 +12,7 @@
 | ---------------------- | ------------------------------------------- |
 | **Team Name**          | NoCoders.ai.                                |
 | **Team Domain**        | Domain 1.                                   |
-| **SDG Track (1–17)**   | e.g. SDG 11 — Sustainable Cities and Communities |
+| **SDG Track (1–17)**   | SDG 4: Quality Education (Target 4.4) |
 | **Team Leader**        | Nurali Zhan                                 |
 | **University**         | Xiamen University Malaysia                  |
 | **Number of Members**  | 4.                                          |
@@ -23,7 +23,6 @@
 | ----------------- | ---------------------------------------------- |
 | GitHub Repository | https://github.com/ururu9339/sdc-2026.git      |
 | Live Demo         | https://your-project.replit.app                |
-| RunPod Endpoint   | https://api.runpod.ai/v2/your-endpoint-id      |
 | Slide Deck        | https://example.com/slides                     |
 | Demo Video        | https://example.com/demo-video                 |
 
@@ -40,7 +39,7 @@ Workers, students and career counsellors in Malaysia have little forward-looking
 Currvix turns raw job postings into a forecast of skill and job demand, then uses it to recommend reskilling paths:
 
 1. **Normalize.** An embedding model (Qwen3-Embedding-4B) maps every skill or job mention in a posting or CV to a stable ID in a curated taxonomy aligned with MASCO, Malaysia's occupation classification.
-2. **Count.** The mapped mentions become monthly demand series per skill and job.
+2. **Count.** The mapped mentions become weekly demand series per skill and job.
 3. **Forecast.** A LightGBM model forecasts each series' growth.
 4. **Explain and match.** A job↔skill graph built from posting co-occurrence shows what each job needs. Matching compares a user's skills against it to find jobs within reach and the missing skills that are growing fastest.
 
@@ -54,6 +53,9 @@ Similarity only decides *which* skills and jobs are related. Growth numbers come
 - **Reskilling match:** finds the jobs a user is close to and ranks their skill gaps by graph weight × forecast growth.
 - **CV intake:** a CV can come in through a form or as an uploaded PDF or image, which is read with Tesseract OCR.
 - **Evaluated and versioned:** a frozen gold set gates every change to the embedding model. Thresholds and scores are recorded in `models/version_log.json`.
+- **Demand forecasting with a validation gate:** a LightGBM model forecasts each skill's and job's share of postings 12 weeks ahead, with 10–90% intervals. Walk-forward folds compare it with five baselines; a model that does not beat them is never published as validated, and its forecasts are served only as a labelled preview.
+- **Honest outlook labels:** every forecast carries its as-of date, age, staleness flag and confidence. Series that are identical to another entity's are collapsed and flagged instead of being counted twice.
+- **CV-to-report API:** one call turns a skill list or CV text into best-fit jobs, ranked skill gaps with a reason for each, a three-stage learning path and a market snapshot. Goals such as "interested in machine learning" are not counted as skills the user already has.
 
 | Mention → ID mapping (305 gold mentions) | Top-1 | MRR |
 | ---------------------------------------- | ----- | --- |
@@ -66,12 +68,15 @@ Similarity only decides *which* skills and jobs are related. Growth numbers come
 
 | Layer         | Technology                                                        |
 | ------------- | ----------------------------------------------------------------- |
-| Frontend      | Planned                                                           |
+| Frontend      | React 19, TypeScript, Vite, Tailwind CSS (`frontend/`), bilingual English / Bahasa Melayu; built on Replit and consuming the REST API in `docs/API_FOR_FRONTEND.md` |
 | Backend       | Python, FastAPI, SQLModel                                         |
-| Database      | PostgreSQL + pgvector (taxonomy vectors, mappings, graph); SQLite (candidate API, for now) |
+| Forecasting   | LightGBM, pandas, NumPy (weekly demand series, 12 week horizon)   |
 | AI models     | Qwen3-Embedding-4B via Ollama; LightGBM (demand forecasting); Tesseract OCR |
+| Database      | PostgreSQL + pgvector (taxonomy vectors, mappings, graph); SQLite (candidate API, for now) |
+| CV intake     | Tesseract OCR, pdf2image, Pillow                                  |
+| Data          | Open job posting datasets as CSV, loaded through a source registry |
 | AI / Compute  | RunPod (GPU)                                                      |
-| Hosting / Dev | Replit                                                            |
+| Hosting / Dev | Replit (API served from a committed data snapshot in `serving/`)  |
 
 ---
 
@@ -79,7 +84,7 @@ Similarity only decides *which* skills and jobs are related. Growth numbers come
 
 ```
 .
-├── embeddings/                  # Skill/job normalization, graph, matching
+├── embeddings/                  # Qwen3 embeddings: skill/job normalization, graph, matching
 │   ├── embedder.py              # The only entry point for embeddings (model, dim, instruction, cache)
 │   ├── db.py                    # Postgres connection + version health check
 │   ├── schema.sql               # pgvector tables: entities, mappings, graph, forecasts
@@ -88,29 +93,25 @@ Similarity only decides *which* skills and jobs are related. Growth numbers come
 │   ├── graph.py                 # Job↔skill weights (co-occurrence + embedding fallback)
 │   ├── cold_start.py            # Skill profiles for unseen job titles
 │   ├── match.py                 # Jobs within reach + ranked skill gaps for a user
-│   ├── versioning.py            # Read/write models/version_log.json, quality gate
-│   ├── taxonomy/
-│   │   ├── skills.csv           # Canonical skills (id, name, alt_labels, description)
-│   │   └── jobs.csv             # Canonical jobs with MASCO unit-group codes
-│   └── eval/
-│       ├── gold_mentions.csv    # Frozen gold set: mention → ID
-│       ├── gold_job_pairs.csv   # Frozen gold set: similar / dissimilar job pairs
-│       └── evaluate.py          # Metrics, baselines, threshold selection
-├── models/
-│   └── version_log.json         # Active model versions, metrics and thresholds
+│   ├── versioning.py            # models/version_log.json and the quality gate
+│   ├── taxonomy/                # skills.csv, jobs.csv (MASCO unit-group codes)
+│   └── eval/                    # Frozen gold sets + evaluate.py (metrics, baselines, thresholds)
+├── frontend/                    # React website: profile form, CV upload, report, market signals
 ├── src/
-│   ├── backend/
-│   │   ├── main.py              # FastAPI app entry point
-│   │   ├── db.py                # SQLModel engine
-│   │   ├── api/
-│   │   │   ├── candidates.py    # CV intake: form and PDF/image upload
-│   │   │   └── forecast.py      # Forecast endpoints (planned)
-│   │   ├── models/candidate.py  # Candidate schema
-│   │   └── services/ocr.py      # OCR and CV section parsing
-│   ├── pipeline/agent_loop.py   # Posting ingestion pipeline (planned)
-│   └── sources/sources_registry.json  # Job posting sources (planned)
-├── .gitignore
-├── LICENSE
+│   ├── backend/                 # FastAPI app (serves the API and the built website)
+│   │   ├── main.py              # App entry point, routers, CORS, error handling
+│   │   ├── api/                 # forecast, report, health and candidate endpoints
+│   │   ├── services/            # forecast store, CV-to-report engine, OCR, catalog
+│   │   └── models/              # Pydantic / SQLModel response and request schemas
+│   ├── sources/                 # Source adapters, taxonomy aliases, registry, validation
+│   ├── training/                # Features, LightGBM training, baselines, walk-forward gate, audit
+│   ├── pipeline/                # Agent loop, forecast export, serving-bundle refresh
+│   └── validation/simulate.py   # Synthetic positive/negative controls for the gate
+├── serving/                     # Committed snapshot the deployed API serves (forecasts, graph, report)
+├── handoff/                     # Forecasts and job–skill graph as CSV, for loading into Postgres
+├── models/version_log.json      # Active embedding version, metrics and thresholds
+├── docs/                        # API contract, deployment, results, simulation
+├── tests/                       # pytest suite
 ├── requirements.txt
 └── README.md
 ```
@@ -118,18 +119,18 @@ Similarity only decides *which* skills and jobs are related. Growth numbers come
 ### Architecture
 
 ```
-Job postings ──► normalize.py ──► posting_entity (posting, month, skill/job ID)
-                    │                     │
-           Qwen3-Embedding-4B             ├──► monthly counts ──► LightGBM ──► entity_forecast
-           (Ollama) + pgvector            │
-                                          └──► graph.py ──► job_skill_edge
-                                                                  │
-User CV (form / PDF OCR) ──► FastAPI ──► match.py ◄───────────────┴── entity_forecast
-                                           │
-                                           └──► jobs within reach + ranked skill gaps
+Job postings ──► src/sources ──► observations ──► src/training (LightGBM + gate vs 5 baselines)
+                                                        │
+                                                        ▼
+                                  serving/ bundle + handoff/ CSVs ──► entity_forecast (Postgres)
+                                                                             │
+User CV (form / PDF OCR / text) ──► FastAPI /api/v1/report ──► embeddings/match.py (Qwen3 + pgvector)
+                                          │                         │  falls back to offline aliases
+                                          ▼                         ▼
+                 best-fit jobs · ranked skill gaps · learning path · market snapshot · outlook labels
 ```
 
-Embeddings are computed offline for the taxonomy and historical postings, then stored in Postgres. Only a user's free-text CV skills or a new job title need live embedding.
+The taxonomy is embedded once and stored in Postgres. Only a user's free-text skills need live embedding. Without `DATABASE_URL` the report uses the offline alias matcher and says so in its warnings.
 
 ---
 
@@ -147,9 +148,12 @@ Ollama has no authentication of its own. Never expose port 11434 to the internet
 
 ### Option 1 — Run on Replit
 
-1. Import this repository via **Create Repl → Import from GitHub**.
-2. In the **Secrets** tab (🔒), add the environment variables above.
-3. Set the run command to `uvicorn src.backend.main:app --host 0.0.0.0 --port 8000` and click **Run**.
+1. Import this repository via **Create Repl → Import from GitHub**. The committed `.replit` installs Python and
+   Node, Tesseract and Poppler, builds the website and starts the API.
+2. Click **Run**. The site and the API are served together on port 8000 (public port 80); the health check is
+   `/api/v1/health`.
+3. To publish, use **Deploy → Autoscale**. Optional secrets are listed above; without `DATABASE_URL` the report uses
+   the offline skill matcher and says so.
 
 ### Option 2 — Run Locally
 
@@ -164,9 +168,14 @@ pip install -r requirements.txt
 # 2. OCR system packages (for PDF/image CV upload)
 brew install tesseract poppler  # Ubuntu: apt install tesseract-ocr poppler-utils
 
-# 3. Start the API (docs at http://localhost:8000/docs)
+# 3. Build the website (Node 20.19+ and pnpm 10)
+cd frontend && pnpm install --frozen-lockfile && pnpm build && cd ..
+
+# 4. Start the site and API on http://localhost:8000 (API docs at /docs)
 python -m src.backend.main
 ```
+
+For frontend work, `pnpm dev` in `frontend/` serves the site on port 5173 and forwards `/api` to port 8000.
 
 ### Embedding pipeline
 
@@ -185,6 +194,14 @@ python -m embeddings.cold_start "Cloud Security Engineer"
 python -m embeddings.match "python3" "SQL" "PowerBI"
 ```
 
+### Run the tests
+
+```bash
+python3 -m pytest -q tests
+```
+
+The refresh tests expect a local `data/` folder with the raw sources, as on the forecasting team's machine.
+
 ### Evaluate the embedding model
 
 ```bash
@@ -198,59 +215,45 @@ A new model, vector size or instruction text must score at least as well as the 
 
 ## How We Use Replit *(Required)*
 
-Describe how your team used Replit. For example:
-
-- **Development:** Collaborative coding in a shared Repl using Multiplayer.
-- **Hosting:** The app is deployed with Replit Deployments at the Live Demo link above.
-- **Secrets:** API keys are stored in Replit Secrets, never in the code.
-
-📄 Proof of use: [`submission/SDC2026_TeamName_Replit_POU.pdf`](submission/SDC2026_TeamName_Replit_POU.pdf)
-
-## How We Use RunPod *(Required)*
-
-Describe how your team used RunPod. For example:
-
-- **Workload:** Model inference (e.g. text generation, image processing) runs on a RunPod GPU.
-- **Setup:** `runpod/handler.py` is deployed as a **RunPod Serverless Endpoint**.
-- **Integration:** The Replit app sends requests to the endpoint using `RUNPOD_API_KEY` and `RUNPOD_ENDPOINT_ID`.
-
-Example request:
-
-```bash
-curl -X POST https://api.runpod.ai/v2/$RUNPOD_ENDPOINT_ID/runsync \
-  -H "Authorization: Bearer $RUNPOD_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"input": {"prompt": "Hello"}}'
-```
-
-📄 Proof of use: [`submission/SDC2026_TeamName_Runpod_POU.pdf`](submission/SDC2026_TeamName_Runpod_POU.pdf)
+- **Frontend:** built on Replit. It calls the REST API described in `docs/API_FOR_FRONTEND.md`.
+- **Backend hosting:** the FastAPI backend runs on Replit with `uvicorn src.backend.main:app --host 0.0.0.0 --port 8000`. It serves a committed snapshot of the forecasts (`serving/`), so no model training runs on the server. See `docs/DEPLOY_REPLIT.md`.
+- **Secrets:** `CORS_ORIGINS` and, when the Qwen matcher is connected, `DATABASE_URL`, `OLLAMA_URL` and `OLLAMA_API_KEY` are stored in Replit Secrets, never in the code.
 
 ---
 
 ## Challenges & Learnings
 
-- Development exposed a serious problem in building such a system from the scratch that involves several sources to scan. Moreover, lack of current datasets that have a data from specified range of date
-- Team acquired fundamental knowledge of machine learning concepts, especially embedding systems and forecasting models. Team mastered tech stack such as. Moreover, team gained a wide representation of agentic development involving Replit, Claude Code and other tools. 
+### Challenges
+
+- **Building from scratch across many sources.** Job postings come from several sites, each with its own format, and skills are written inconsistently ("Python", "python3", "pengaturcaraan python") in both English and Malay. We had to design our own taxonomy of stable skill and job IDs, aligned with MASCO. We then built an embedding pipeline that maps every mention to one of those IDs, so demand isn't split across spellings.
+- **No recent, date-ranged datasets.** We couldn't find open Malaysian job-posting data that is both recent and continuous. Our main series ends in September 2023, and the JobStreet listings (2024 to 2025) do not overlap it, so forecasts are served as a dated, unvalidated preview. We built and tested the pipeline on these files and on a labelled simulation, and designed it so newer data can be loaded without code changes.
+- **Choosing thresholds without guessing.** The default similarity thresholds rejected almost every correct match. We hand-built a gold set of 305 mentions, including negatives with no correct ID, and picked the thresholds from measured precision.
+- **Knowing when to abstain.** Unknown job titles always have *some* nearest neighbour. We added cut-offs taken from the evaluation, so the system answers "insufficient data" instead of inventing a profile.
+
+### Learnings
+
+- **Machine learning fundamentals:** how embedding models represent meaning, how to evaluate them against baselines (exact match, fuzzy match, a smaller model), and how a forecasting model such as LightGBM fits into the pipeline without being mixed up with similarity scores.
+- **Tech stack:** Python, FastAPI and SQLModel for the backend; PostgreSQL with pgvector for vector search; Ollama to serve Qwen3-Embedding-4B; Tesseract OCR for CV uploads; rapidfuzz for baselines.
+- **Agentic development:** we built with Replit and Claude Code. AI agents helped us plan, write, test and debug code quickly, while we stayed responsible for reviewing decisions and checking results against real evaluation numbers.
+- **Data quality matters as much as the model.** Most remaining errors came from gaps in our taxonomy, not from the embedding model.
 
 ## Future Improvements
 
-- [ ] Ingest real job postings (`src/sources/`, `src/pipeline/agent_loop.py`) and map them through `normalize.py`
-- [ ] Train the LightGBM forecaster and write its output to `entity_forecast`
-- [ ] Build the frontend and the forecast / matching API endpoints
+- [ ] Retrain the forecaster on real Malaysian postings data with enough history for the validation gate
 - [ ] Grow the taxonomy from ESCO / O*NET and verify the MASCO codes against DOSM's MASCO 2020
-- [ ] Add real posting mentions to the gold set, then re-record the thresholds
+- [ ] Add real posting mentions to the embedding gold set, then re-record the thresholds
 - [ ] Add a small generative model for skill extraction and plain-language explanations
-- [ ] Move the backend database to Postgres and run the version health check at startup
-- [ ] Host live embedding on a protected GPU endpoint, and restrict CORS to the app's origin
+- [ ] Move the candidate database from SQLite to Postgres and run the embedding version check at startup
+- [ ] Host live embedding on a protected endpoint
 
 ## Team
 
 | Name        | Role                | GitHub                                   |
 | ----------- | ------------------- | ---------------------------------------- |
 | Nurali Zhan | Team Lead / Backend | [@username](https://github.com/username) |
-| Member Name | Frontend            | [@username](https://github.com/username) |
-| Askaruly Ali| AI / RunPod         | [@invalid-RJK](https://github.com/username) |
-| Member Name | AI / RunPod         | [@username](https://github.com/username) |
+| Shahzod Bakiev | Frontend / Backend | [@username](https://github.com/username) |
+| Askaruly Ali | AI engine         | [@invalid-RJK](https://github.com/username) |
+| Amirkhan Dossymov | AI / RunPod   | [@username](https://github.com/username) |
 
 ---
 

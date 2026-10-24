@@ -1,11 +1,3 @@
-"""Adapter: job_market_dataset.csv (team-provided) -> the market survey leading source.
-
-    python3 -m src.sources.job_market [path/to/job_market_dataset.csv]
-
-Share of rows per occupation family per period. The raw file has only year and month, so its
-granularity is monthly (period = month start), whatever the registry says the model grid is.
-Shares use all rows that month as the denominator. The 'field' column is not exported: it is a
-coarser grouping of the same occupations. Provenance: apparently synthetic, license unverified."""
 from __future__ import annotations
 
 import sys

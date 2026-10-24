@@ -1,15 +1,3 @@
-"""CV-to-report: match a user's skills to jobs, rank skill gaps, order a learning path and attach the descriptive
-market snapshot. Every outlook figure is labelled with the feed it came from; while no model is validated the
-figures are an unvalidated PREVIEW.
-
-Engines
-  qwen_pgvector  the embeddings team's matcher (embeddings/match.py). Needs DATABASE_URL, Postgres with pgvector,
-                 psycopg and Ollama. Used only when it imports and runs; otherwise we fall back and say so.
-  offline_alias  taxonomy alias matching plus the measured job-skill graph in data/processed. No language model.
-
-The scoring constants below are copies of the embeddings team's values. tests/test_report.py parses their files
-and fails when a value drifts.
-"""
 from __future__ import annotations
 
 import math
@@ -25,19 +13,25 @@ from src.backend.services import forecast_store as store
 from src.sources import taxonomy as T
 from src.training import config as C
 
-# embeddings/match.py: PROFILE_SIZE, REACH, TOP_TARGETS. embeddings/graph.py: MIN_POSTINGS.
+
 PROFILE_SIZE = 15
 REACH = 0.5
 TOP_TARGETS = 3
 MIN_POSTINGS = 20
-# The forecast store holds 12-week horizons, which is round(12 * 7 / 30.44) = 3 months.
+
 FORECAST_HORIZON_MONTHS = 3
 BEST_FIT_SHOWN = 5
 STAGE_TITLES = {1: ["Start here"], 2: ["Start here", "Next"], 3: ["Start here", "Next", "Later"]}
 ENGINES = ("auto", "qwen_pgvector", "offline_alias")
 MAX_SKILLS = 100
 MAX_TEXT_CHARS = 20000
-BLOB_MIN_ALIAS_CHARS = 3  # free text is matched only with aliases of 3+ characters, so 'r' or 'go' do not fire
+BLOB_MIN_ALIAS_CHARS = 3
+GOAL_CUES = re.compile(
+    r"\b(?:interested in|interest in|passion for|looking to|hoping to|hope to|aspir\w*|wants? to|wanting to|"
+    r"would like to|wish(?:es)? to|plan(?:s|ning)? to|keen (?:to|on)|eager to|aim(?:s|ing)? to|seeking|"
+    r"(?:move|moving|transition|transitioning|switch|switching|pivot|pivoting) (?:in)?to|career in|pursu\w* a career|"
+    r"currently learning|learning to|berminat|ingin|hendak|mahu|berhasrat|bercita-cita)\b", re.I)
+SENTENCE_END = re.compile(r"[;!?\n]|\.(?=\s|$)")
 GRAPH_FILENAME = store.GRAPH_FILENAME
 
 LEARNING_NOTE = ("The order is a heuristic, not a curriculum: skills are sorted by how many postings in our data "
@@ -51,13 +45,12 @@ BASE_CAVEATS = [
 ]
 
 
-# ---- forecast lookup ----------------------------------------------------------------------------
 def _forecast_info(entity_id: str, horizon_months: int, cache: dict) -> dict:
-    """Store record for an entity, as the API serves it. Growth = exp(p50) - 1 over the 12-week horizon."""
     if entity_id in cache:
         return cache[entity_id]
     info: dict[str, Any] = {"growth": None, "forecast_status": "no_forecast", "direction": None,
-                            "confidence": None, "signal_quality": None}
+                            "confidence": None, "signal_quality": None, "as_of": None, "target_period": None,
+                            "shares_signal_with": None}
     _, rec = store.record_for(entity_id)
     if rec is not None and horizon_months == FORECAST_HORIZON_MONTHS and rec.get("status") == "ok" \
             and rec.get("p50") is not None:
@@ -66,14 +59,13 @@ def _forecast_info(entity_id: str, horizon_months: int, cache: dict) -> dict:
         info["forecast_status"] = "insufficient_data" if rec.get("status") != "ok" else "no_forecast"
     if rec is not None:
         info.update(direction=rec.get("direction"), confidence=rec.get("confidence"),
-                    signal_quality=rec.get("signal_quality"))
+                    signal_quality=rec.get("signal_quality"), as_of=rec.get("as_of"),
+                    target_period=rec.get("target_period"), shares_signal_with=rec.get("shares_signal_with"))
     cache[entity_id] = info
     return info
 
 
-# ---- free-text resolution ----------------------------------------------------------------------
 def _best_alias(text: str, aliases: dict) -> tuple[int, str, str] | None:
-    """(specificity, skill id, matched text) of the most specific alias that matches, or None."""
     best = None
     for sid, alist in aliases.items():
         for alias in alist:
@@ -84,8 +76,21 @@ def _best_alias(text: str, aliases: dict) -> tuple[int, str, str] | None:
     return best
 
 
+def _split_goals(text: str) -> tuple[str, list[str]]:
+    kept, goals, pos = [], [], 0
+    for m in GOAL_CUES.finditer(text):
+        if m.start() < pos:
+            continue
+        end = SENTENCE_END.search(text, m.end())
+        stop = end.start() if end else len(text)
+        kept.append(text[pos:m.start()])
+        goals.append(text[m.start():stop].strip())
+        pos = stop
+    kept.append(text[pos:])
+    return "".join(kept), goals
+
+
 def _blob_matches(text: str, aliases: dict) -> dict[str, str]:
-    """Skill ids found in free text, with the text that matched. Short aliases are ignored in free text."""
     low = text.lower()
     found: dict[str, str] = {}
     for sid, alist in aliases.items():
@@ -101,7 +106,6 @@ def _blob_matches(text: str, aliases: dict) -> dict[str, str]:
     return found
 
 
-# ---- offline engine ---------------------------------------------------------------------------
 def _load_graph() -> pd.DataFrame | None:
     path = C.PROCESSED_DIR / GRAPH_FILENAME
     if not path.exists():
@@ -110,8 +114,6 @@ def _load_graph() -> pd.DataFrame | None:
 
 
 def _offline_profiles(graph: pd.DataFrame | None) -> dict[str, list[dict]]:
-    """Job -> skills, weight in [0, 1]. Co-occurrence share shrunk by n / MIN_POSTINGS, as embeddings/graph.py does.
-    The embedding term is absent offline, so jobs with fewer than MIN_POSTINGS postings get a smaller weight here."""
     profiles: dict[str, list[dict]] = {}
     if graph is None or graph.empty:
         return profiles
@@ -133,7 +135,6 @@ def _offline_profiles(graph: pd.DataFrame | None) -> dict[str, list[dict]]:
 
 
 def _score(profiles: dict[str, list[dict]], have: set[str], names: dict, info_of: Callable[[str], dict]) -> dict:
-    """The scoring rules of embeddings/match.py, applied to offline profiles."""
     jobs = []
     for job_id, full in profiles.items():
         profile = full[:PROFILE_SIZE]
@@ -146,7 +147,7 @@ def _score(profiles: dict[str, list[dict]], have: set[str], names: dict, info_of
                      "matched": [d["skill_id"] for d in matched], "missing": [d["skill_id"] for d in missing],
                      "_missing_detail": missing, **_jobfit_info(info)})
     jobs.sort(key=lambda j: (-round(j["coverage"], 4), -(j["growth"] or 0.0), j["job_id"]))
-    within = {j["job_id"] for j in jobs if j["coverage"] >= REACH and (j["growth"] is None or j["growth"] > 0)}
+    within = {j["job_id"] for j in jobs if j["coverage"] >= REACH and not _declining(j["growth"])}
     pool = [j for j in jobs if j["job_id"] in within] or jobs
     targets = [j for j in pool[:TOP_TARGETS]] if jobs and jobs[0]["coverage"] > 0 else []
 
@@ -170,9 +171,15 @@ def _score(profiles: dict[str, list[dict]], have: set[str], names: dict, info_of
             "gaps": list(gaps.values())}
 
 
+def _declining(growth: float | None) -> bool:
+    return growth is not None and math.log1p(growth) < -C.DIRECTION_THRESHOLD
+
+
 def _jobfit_info(info: dict) -> dict:
     return {"growth": info["growth"], "forecast_status": info["forecast_status"], "direction": info["direction"],
-            "confidence": info["confidence"], "signal_quality": info["signal_quality"]}
+            "confidence": info["confidence"], "signal_quality": info["signal_quality"],
+            "as_of": info.get("as_of"), "target_period": info.get("target_period"),
+            "shares_signal_with": info.get("shares_signal_with")}
 
 
 _gapfit_info = _jobfit_info
@@ -213,16 +220,14 @@ def _offline_data(items: list[str], blob: dict[str, str], vocab: T.Vocabulary, h
     return {"resolved": resolved, "have": have, **scored}
 
 
-# ---- Qwen / pgvector engine ----------------------------------------------------------------------
 def _qwen_data(items: list[str], blob: dict[str, str], vocab: T.Vocabulary, horizon: int, warnings: list[str]):
-    """Calls the teammate's matcher unchanged. Its growth numbers come from entity_forecast in the database."""
-    from embeddings import db as edb  # needs psycopg
-    from embeddings import match as M  # needs the embeddings package and its embedder
+    from embeddings import db as edb
+    from embeddings import match as M
     from embeddings.graph import job_skill_profile
 
     names = vocab.names
     list_set = set(items)
-    extra = [sid for sid in blob if sid not in list_set]  # blob matches enter as taxonomy ids (pass-through)
+    extra = [sid for sid in blob if sid not in list_set]
     with edb.connect() as conn:
         out = M.match_user(conn, items + extra, horizon)
         resolved: list[ResolvedSkill] = []
@@ -284,10 +289,10 @@ def _qwen_data(items: list[str], blob: dict[str, str], vocab: T.Vocabulary, hori
             "targets": list(out["targets"]), "gaps": gaps}
 
 
-# ---- assembly -----------------------------------------------------------------------------------
 def _banner(feed: str) -> str | None:
     if feed == "live":
-        return None
+        win = store.feed_window()
+        return store.live_banner(win["forecast_as_of"], win["forecast_target_period"])
     if feed == "preview":
         return store.preview_envelope()["banner"]
     return (f"NO FORECASTS: no model has passed the validation gate ({store.no_live_reason()}). Outlook figures are "
@@ -295,7 +300,6 @@ def _banner(feed: str) -> str | None:
 
 
 def _stages(gaps: list[dict]) -> list[str]:
-    """Stage title for each gap, in score order: earlier stages take the extra items."""
     n = len(gaps)
     k = min(3, n)
     if k == 0:
@@ -321,11 +325,13 @@ def _why(gap: dict, names: dict, validated: bool) -> str:
     if k > 1:
         text += f"; also a gap for {k - 1} other target job{'s' if k > 2 else ''}"
     if gap["forecast_status"] == "ok" and gap["growth"] is not None and gap["direction"]:
-        text += f"; outlook: {gap['direction']} ({gap['growth'] * 100:+.0f}%, {label})"
+        text += f"; outlook: {gap['direction']} ({gap['growth'] * 100:+.0f}%, {label}, made as of {gap['as_of']})"
     elif gap["forecast_status"] == "insufficient_data":
         text += "; outlook: not enough history to forecast"
     else:
         text += "; no forecast available"
+    if gap.get("shares_signal_with"):
+        text += "; " + C.DUPLICATE_CAVEAT.format(canon=gap["shares_signal_with"])
     return text
 
 
@@ -334,7 +340,7 @@ def _market(gaps: list[dict], warnings: list[str]) -> list[MarketItem]:
         return []
     try:
         snap = store.snapshot(None, limit=100000)
-    except Exception as exc:  # the snapshot reads the raw source files; a missing file must not break the report
+    except Exception as exc:
         warnings.append(f"The market snapshot could not be computed ({type(exc).__name__}).")
         return []
     best: dict[str, dict] = {}
@@ -356,11 +362,17 @@ def _skill_ref(sid: str, names: dict) -> SkillRef:
 
 def _assemble(engine: str, data: dict, feed: str, horizon: int, names: dict, warnings: list[str]) -> Report:
     validated = feed == "live"
+    window = store.feed_window()
     banner = _banner(feed)
     disclaimer = store.disclaimer()
     resolved = data["resolved"]
     unresolved = [r.input for r in resolved if r.status == "unresolved"]
     caveats = [disclaimer, *BASE_CAVEATS]
+    window = store.feed_window()
+    if window["stale"]:
+        caveats.append(f"Outlook figures are dated: made as of {window['forecast_as_of']} for "
+                       f"{window['forecast_target_period']}. Data is {window['data_age_days']} days old, so they may "
+                       "not describe current postings.")
     if validated:
         caveats.append("Outlook figures come from a validated model.")
     else:
@@ -377,7 +389,7 @@ def _assemble(engine: str, data: dict, feed: str, horizon: int, names: dict, war
 
     base = dict(engine=engine, feed=feed, validated=validated, banner=banner, disclaimer=disclaimer,
                 horizon_months=horizon, caveats=caveats, warnings=warnings, resolved_skills=resolved,
-                unresolved=unresolved, learning_path=LearningPath(note=LEARNING_NOTE, stages=[]))
+                unresolved=unresolved, learning_path=LearningPath(note=LEARNING_NOTE, stages=[]), **window)
     if not data["have"]:
         return Report(**base, status="no_skills_resolved",
                       message="None of the skills could be matched to the taxonomy. Pick skills from the list, or "
@@ -407,7 +419,9 @@ def _assemble(engine: str, data: dict, feed: str, horizon: int, names: dict, war
                        matched=[_skill_ref(s, names) for s in j["matched"]],
                        missing=[_skill_ref(s, names) for s in j["missing"]], growth=j["growth"],
                        forecast_status=j["forecast_status"], direction=j["direction"], confidence=j["confidence"],
-                       signal_quality=j["signal_quality"]) for j in shown]
+                       signal_quality=j["signal_quality"], as_of=j.get("as_of"),
+                       target_period=j.get("target_period"), shares_signal_with=j.get("shares_signal_with"))
+                for j in shown]
 
     gaps = sorted(data["gaps"], key=lambda g: (-g["score"], -len(g["for_jobs"]), g["skill_id"]))
     stage_titles = _stages(gaps)
@@ -418,7 +432,8 @@ def _assemble(engine: str, data: dict, feed: str, horizon: int, names: dict, war
             share=None if g["share"] is None else round(g["share"], 4), growth=g["growth"],
             forecast_status=g["forecast_status"], direction=g["direction"], confidence=g["confidence"],
             signal_quality=g["signal_quality"], for_jobs=g["for_jobs"], stage=title,
-            why=_why(g, names, validated)))
+            as_of=g.get("as_of"), target_period=g.get("target_period"),
+            shares_signal_with=g.get("shares_signal_with"), why=_why(g, names, validated)))
     stages: list[LearningStage] = []
     for title in dict.fromkeys(stage_titles):
         stages.append(LearningStage(title=title, skills=[SkillRef(skill_id=g.skill_id, name=g.name)
@@ -430,7 +445,6 @@ def _assemble(engine: str, data: dict, feed: str, horizon: int, names: dict, war
 
 def build_report(skills: list[str], text: str | None = None, horizon_months: int = FORECAST_HORIZON_MONTHS,
                  engine: str = "auto") -> dict:
-    """The report as a plain dict (JSON-ready). Never raises for unmatched or empty input."""
     if engine not in ENGINES:
         raise ValueError(f"engine must be one of {ENGINES}")
     if len(skills) > MAX_SKILLS:
@@ -448,7 +462,12 @@ def build_report(skills: list[str], text: str | None = None, horizon_months: int
     vocab = T.load_vocabulary()
     names = dict(vocab.names)
     feed = store.serving_feed()
-    blob = _blob_matches(text, vocab.skill_aliases) if text else {}
+    held_text, goals = _split_goals(text)
+    blob = _blob_matches(held_text, vocab.skill_aliases) if held_text.strip() else {}
+    for goal in goals:
+        if any(sid not in blob for sid in _blob_matches(goal, vocab.skill_aliases)):
+            warnings.append(f"'{_short_text(goal)}' reads as a goal, not a skill you have, so the skills in it "
+                            "were not counted.")
 
     data = None
     used = "offline_alias"
@@ -457,7 +476,7 @@ def build_report(skills: list[str], text: str | None = None, horizon_months: int
             try:
                 data = _qwen_data(items, blob, vocab, horizon_months, warnings)
                 used = "qwen_pgvector"
-            except Exception as exc:  # any failure of the real engine falls back, with a warning
+            except Exception as exc:
                 warnings.append(f"The Qwen/pgvector matcher failed ({type(exc).__name__}: {_short(exc)}); "
                                 "the offline alias matcher was used instead.")
         elif engine == "qwen_pgvector":
@@ -467,7 +486,7 @@ def build_report(skills: list[str], text: str | None = None, horizon_months: int
         data = _offline_data(items, blob, vocab, horizon_months, warnings)
         used = "offline_alias"
     if used == "qwen_pgvector":
-        # Growth values came from entity_forecast; the feed label still comes from the local forecast store.
+
         warnings.append("Growth values were read from the entity_forecast table and are not checked against the "
                         "validation gate here; the preview label reflects the local forecast store.")
     for g in data["gaps"]:
@@ -478,3 +497,8 @@ def build_report(skills: list[str], text: str | None = None, horizon_months: int
 
 def _short(exc: Exception) -> str:
     return re.sub(r"\s+", " ", str(exc))[:200]
+
+
+def _short_text(text: str, limit: int = 80) -> str:
+    text = re.sub(r"\s+", " ", text)
+    return text if len(text) <= limit else text[:limit - 3] + "..."

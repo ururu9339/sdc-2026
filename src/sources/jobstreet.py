@@ -1,13 +1,3 @@
-"""Adapter: JobStreet listings (azrai99/job-dataset, CC BY 4.0) -> the JobStreet leading source.
-
-    python3 -m src.sources.jobstreet [path/to/jobstreet_all_job_dataset.csv]
-
-Writes data/raw/<source_id>.csv (long format) and its meta sidecar. Entities come from the shared
-taxonomy: job families from `role` then `job_title`, skills from `job_title` + `descriptions`.
-
-Periods (weekly, from the registry) with fewer than min_period_postings postings are dropped and
-listed in the meta file. This source is sparse: periods with no listings have no rows, and they are
-NOT zero-filled, so a gap stays a gap downstream."""
 from __future__ import annotations
 
 import sys
@@ -28,7 +18,7 @@ DATE_COL = "listingDate"
 
 def prepare(raw: pd.DataFrame, granularity: str) -> pd.DataFrame:
     df = raw.drop_duplicates("job_id").copy()
-    df["period"] = to_period(df[DATE_COL], granularity)  # UTC date, the timestamps carry a Z suffix
+    df["period"] = to_period(df[DATE_COL], granularity)
     return df[df["period"].notna()].copy()
 
 

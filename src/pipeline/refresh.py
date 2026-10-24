@@ -1,23 +1,3 @@
-"""One refresh: the agent loop, the handoff export, the serving bundle and a record of what happened.
-
-    python3 -m src.pipeline.refresh [--as-of YYYY-MM-DD] [--bundle DIR] [--no-bundle] [--dry-run]
-
-Steps (in order, each recorded in data/last_refresh.json):
-  1. lock     data/refresh.lock (JSON: pid, started_at). A lock whose process is gone, or older than STALE_HOURS,
-              is taken over. A live lock makes the run exit 2 without touching anything.
-  2. loop     AgentLoop.run_once: perceive, decide, act (retrain or not), forecast, reconcile, log.
-  3. export   data/handoff/entity_forecast_<feed>.csv for the feed that is served (live, or preview while no live
-              model exists). Nothing is written when there is no feed.
-  4. bundle   serving/ (src.pipeline.export_bundle), unless --no-bundle.
-  5. record   data/last_refresh.json, written even when a step fails.
-
-Exit codes: 0 success (including 'no live model', which is a valid answer), 1 failure (no data, feature mismatch,
-an exception), 2 refused (lock held, or run from the serving bundle instead of the local data/ folder).
-
-Idempotence: running twice for the same as_of does not add forecast or outcome records. The second run reuses the
-preview model fitted for that as_of (AgentLoop.decide) and reconciles only forecasts not yet scored; the summary
-shows the record counts before and after, so this can be checked.
-"""
 from __future__ import annotations
 
 import argparse
@@ -71,7 +51,7 @@ def _is_stale(path: Path, now: datetime) -> bool:
         started = datetime.fromisoformat(info["started_at"])
         pid = int(info["pid"])
     except (OSError, ValueError, KeyError, TypeError):
-        # unreadable or half-written lock: stale once its file is older than the limit
+
         age = now.timestamp() - path.stat().st_mtime
         return age > STALE_HOURS * 3600
     if now - started > timedelta(hours=STALE_HOURS):
@@ -80,7 +60,6 @@ def _is_stale(path: Path, now: datetime) -> bool:
 
 
 class RefreshLock:
-    """Exclusive lock file. Stale locks (dead process, or older than STALE_HOURS) are taken over."""
 
     def __init__(self, path: Path, now: datetime | None = None):
         self.path = path
@@ -137,8 +116,6 @@ def _check_layout() -> None:
 
 def run_refresh(as_of: str | None = None, bundle_dir: Path | None = None, no_bundle: bool = False,
                 now: datetime | None = None) -> dict:
-    """Run one refresh and return the record written to last_refresh.json. Raises RefreshRefused, LockHeld, or
-    any exception from a step (the record is still written with status 'failed')."""
     _check_layout()
     now = now or datetime.now(timezone.utc)
     t_all = time.perf_counter()
@@ -187,7 +164,7 @@ def run_refresh(as_of: str | None = None, bundle_dir: Path | None = None, no_bun
                                     "as_of": manifest["as_of"]}
                 record["steps"]["bundle_s"] = round(time.perf_counter() - t, 2)
             record["status"] = "ok"
-        except Exception as exc:  # the record must say what failed, then the error goes to the caller
+        except Exception as exc:
             record["error"] = {"type": type(exc).__name__, "message": str(exc)[:300]}
             raise
         finally:
@@ -201,7 +178,6 @@ def run_refresh(as_of: str | None = None, bundle_dir: Path | None = None, no_bun
 
 
 def plan(as_of: str | None = None, bundle_dir: Path | None = None, no_bundle: bool = False) -> dict:
-    """Dry run: checks the inputs and says what would be written. Writes nothing and runs no loop."""
     _check_layout()
     registry = C.load_registry()
     target = C.target_source(registry)
@@ -246,7 +222,7 @@ def _summary_lines(record: dict) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(description="Refresh forecasts and write the serving bundle")
     ap.add_argument("--as-of", help="origin date (YYYY-MM-DD); default: the newest target period")
     ap.add_argument("--bundle", help="bundle directory (default: <repo>/serving)")
     ap.add_argument("--no-bundle", action="store_true", help="do not write the serving bundle")

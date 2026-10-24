@@ -30,10 +30,13 @@ _SECTION_HEADINGS = {
 }
 
 
+MAX_PDF_PAGES = 5
+
+
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     if not OCR_AVAILABLE:
         raise RuntimeError("OCR packages not installed. Run: pip install pytesseract pdf2image && brew install tesseract poppler")
-    pages = convert_from_bytes(pdf_bytes, dpi=300)
+    pages = convert_from_bytes(pdf_bytes, dpi=300, first_page=1, last_page=MAX_PDF_PAGES)
     return "\n\n".join(pytesseract.image_to_string(p, lang="eng") for p in pages)
 
 

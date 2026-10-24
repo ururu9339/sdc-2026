@@ -1,17 +1,14 @@
-"""The HTTP API. Every public route is served under /api/v1 (the schema documents only these). The same routes are
-also served unprefixed as hidden aliases for older clients.
-
-Run:   uvicorn src.backend.main:app --host 0.0.0.0 --port 8000
-Env:   CORS_ORIGINS (comma-separated; default '*'), DATABASE_URL (optional; enables the Qwen matcher),
-       SDC_DATA_DIR / SDC_MODELS_DIR (optional; see src/training/config.py resolve_layout).
-"""
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.backend.api import health as health_api
 from src.backend.api.candidates import router as candidates_router
@@ -19,13 +16,15 @@ from src.backend.api.forecast import router as forecast_router
 from src.backend.api.report import router as report_router
 from src.backend.db import create_db_and_tables
 from src.backend.errors import install_error_handlers
-from src.backend.middleware import REQUEST_ID_HEADER, ETagMiddleware, RequestLogMiddleware, cors_origins
+from src.backend.middleware import (REQUEST_ID_HEADER, ETagMiddleware, RequestLogMiddleware,
+                                    SecurityHeadersMiddleware, cors_origins)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 APP_VERSION = "0.2.0"
 API_PREFIX = "/api/v1"
+FRONTEND_DIST = Path(os.environ.get("FRONTEND_DIST", Path(__file__).resolve().parents[2] / "frontend" / "dist"))
 OPENAPI_TAGS = [
     {"name": "forecasts", "description": "Forecasts and explanations for jobs and skills. Preview rows are "
                                          "labelled validated=false."},
@@ -47,23 +46,36 @@ DESCRIPTION = (
 )
 
 
+class SinglePageApp(StaticFiles):
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            last = path.rsplit("/", 1)[-1]
+            if exc.status_code != 404 or path.split("/", 1)[0] == "api" or "." in last:
+                raise
+            return await super().get_response("index.html", scope)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_db_and_tables()  # the candidates database; created at server start, never at import time
+    create_db_and_tables()
     yield
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="SDC-2026 API", version=APP_VERSION, description=DESCRIPTION, openapi_tags=OPENAPI_TAGS,
                   lifespan=lifespan)
-    # Outermost first: CORS, then request id and logging, then the ETag rule, then the routes.
+
     app.add_middleware(ETagMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestLogMiddleware)
     origins = cors_origins()
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
-        allow_credentials=origins != ["*"],  # browsers reject credentials with a wildcard origin
+        allow_credentials=origins != ["*"],
         allow_methods=["*"],
         allow_headers=["*"],
         expose_headers=[REQUEST_ID_HEADER, "ETag"],
@@ -75,8 +87,10 @@ def create_app() -> FastAPI:
     public.include_router(report_router)
     public.include_router(health_api.router)
     app.include_router(public, prefix=API_PREFIX)
-    app.include_router(public, include_in_schema=False)  # unprefixed aliases, hidden from the schema
-    app.include_router(candidates_router)  # already /api/v1/candidates
+    app.include_router(public, include_in_schema=False)
+    app.include_router(candidates_router)
+    if (FRONTEND_DIST / "index.html").is_file():
+        app.mount("/", SinglePageApp(directory=FRONTEND_DIST, html=True), name="frontend")
     return app
 
 

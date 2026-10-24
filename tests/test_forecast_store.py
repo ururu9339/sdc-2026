@@ -1,4 +1,3 @@
-"""Service-level tests for the read-only forecast store, on hand-written fixtures (see conftest.py)."""
 import math
 
 
@@ -9,7 +8,7 @@ def test_no_live_model_state(no_model_env):
     assert store.live_version() is None
     assert store.latest_forecasts() == []
     assert store.forecast_for("job:accountant") is None
-    assert store.select_forecasts() == []
+    assert store.query_forecasts()[2] == []
     assert store.no_live_reason() == "failed: beats_baseline, fold_win_rate"
     info = store.model_info()
     assert info["live"] is None and info["live_version"] is None and info["attempts"] == 1
@@ -32,15 +31,15 @@ def test_live_state_latest_run_only(live_model_env):
     assert {r["entity_id"] for r in recs} == {"job:accountant", "job:ai_engineer", "job:business_analyst"}
     assert all(r["as_of"] == "2026-09-14" for r in recs)
     acc = store.forecast_for("job:accountant")
-    assert acc["as_of"] == "2026-09-14" and acc["p50"] == 0.01  # not the older 2026-09-07 run
+    assert acc["as_of"] == "2026-09-14" and acc["p50"] == 0.01
     assert store.forecast_for("unknown_entity") is None
 
 
 def test_live_state_filters(live_model_env):
-    assert [r["entity_id"] for r in store.select_forecasts(direction="emerging")] == ["job:ai_engineer"]
-    assert [r["entity_id"] for r in store.select_forecasts(status="insufficient_data")] == ["job:business_analyst"]
-    assert store.select_forecasts(kind="skill") == []
-    assert len(store.select_forecasts(limit=1)) == 1
+    assert [r["entity_id"] for r in store.query_forecasts(direction="emerging")[2]] == ["job:ai_engineer"]
+    assert [r["entity_id"] for r in store.query_forecasts(status="insufficient_data")[2]] == ["job:business_analyst"]
+    assert store.query_forecasts(kind="skill")[2] == []
+    assert len(store.query_forecasts(limit=1)[2]) == 1
     assert store.forecast_envelope()["model_version"] == "v1"
 
 
@@ -50,7 +49,7 @@ def test_explain_percent_conversion_and_caveats(live_model_env):
     lo, hi = math.exp(0.10) - 1, math.exp(0.45) - 1
     assert f"{100 * lo:+.1f}% to {100 * hi:+.1f}%" in out["summary"]
     assert "12 weeks" in out["summary"] and "to 2026-12-07" in out["summary"]
-    assert "trend_detected" not in out["summary"]  # signal quality is spoken, not dumped as a code
+    assert "trend_detected" not in out["summary"]
     assert out["caveats"][0] == "Test disclaimer: fixture data, for demonstration only."
     assert any("'demo'" in c for c in out["caveats"])
     assert not any("random variation" in c for c in out["caveats"])

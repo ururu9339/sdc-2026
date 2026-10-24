@@ -40,21 +40,17 @@ CREATE TABLE IF NOT EXISTS unmapped_mention (
   PRIMARY KEY (mention, entity_type, model_version)
 );
 
--- Step 6: job<->skill graph for explanation and matching only; never feeds trend numbers.
--- cooc_* is measured evidence from postings; embed_sim is a fallback for thin jobs. Kept separate on purpose.
 CREATE TABLE IF NOT EXISTS job_skill_edge (
   job_id        TEXT NOT NULL REFERENCES entity_embedding (entity_id),
   skill_id      TEXT NOT NULL REFERENCES entity_embedding (entity_id),
-  cooc_postings INTEGER NOT NULL DEFAULT 0,   -- postings for this job that mention this skill
-  job_postings  INTEGER NOT NULL DEFAULT 0,   -- all postings for this job
-  cooc_weight   REAL,                         -- cooc_postings / job_postings; NULL when no co-occurrence
-  embed_sim     REAL,                         -- cosine(job vector, skill vector); NULL outside the per-job top-k
+  cooc_postings INTEGER NOT NULL DEFAULT 0,
+  job_postings  INTEGER NOT NULL DEFAULT 0,
+  cooc_weight   REAL,
+  embed_sim     REAL,
   model_version TEXT NOT NULL,
   PRIMARY KEY (job_id, skill_id)
 );
 
--- Written by the LightGBM forecaster, read by matching (Step 8). Embeddings code never writes here.
--- growth = forecast relative change over the horizon, e.g. 0.12 = +12% postings.
 CREATE TABLE IF NOT EXISTS entity_forecast (
   entity_id      TEXT NOT NULL,
   horizon_months INTEGER NOT NULL,

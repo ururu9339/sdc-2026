@@ -8,6 +8,14 @@ For the developer building the Replit frontend. The backend is FastAPI; the live
 and must never present the numbers as validated. This rule holds for every forecast-bearing response, including
 `/explain`, `/forecast/{id}` and `POST /report`.
 
+**Every forecast on screen must show its dates and its staleness.** Each forecast says when it was made (`as_of`)
+and what period it refers to (`target_period`). The API also computes how old the data is when it answers
+(`data_age_days`, today in UTC minus `as_of`) and whether that is too old (`stale`: true when `data_age_days` is more
+than 60). Show `forecast_window` (for example `made as of 2023-09-11 for 2023-12-04`) next to every outlook, and show
+the `banner` verbatim. When `stale` is true, the banner ends with `Data is N days old.` and the outlook must be
+labelled as out of date. Use the values the API sends; do not compute age in the browser. These fields are computed
+when a response is served and are never stored, so the same forecast can become stale without any new record.
+
 ## 1. Base URL and environment
 
 - Base URL: `<API_BASE_URL>`, for example `https://<your-replit-app>.replit.app`. Keep it in one frontend
@@ -83,6 +91,8 @@ Listings return `total` (all matches), `count` (items on this page), `offset` an
     "live_model": null,
     "feed": "preview",
     "forecast_as_of": "2023-09-11",
+    "forecast_age_days": 1139,
+    "stale": true,
     "n_forecasts": 123,
     "gate_profile": "demo",
     "last_gate": {"passed": false, "reason": "failed: beats_baseline, fold_win_rate"},
@@ -103,10 +113,11 @@ Listings return `total` (all matches), `count` (items on this page), `offset` an
 ```json
 {
   "status": "preview", "feed": "preview", "validated": false,
-  "banner": "PREVIEW: unvalidated candidate forecasts; the model did not pass the validation gate (failed: beats_baseline, fold_win_rate). Not for decisions.",
+  "banner": "PREVIEW: unvalidated candidate forecasts; the model did not pass the validation gate (failed: beats_baseline, fold_win_rate). Forecast made as of 2023-09-11 for 2023-12-04. Data is 1139 days old. Not for decisions.",
   "reason": "failed: beats_baseline, fold_win_rate",
   "model_version": "preview:v18", "gate_profile": "demo",
   "as_of": "2023-09-11", "target_period": "2023-12-04", "horizon_periods": 12,
+  "data_age_days": 1139, "stale": true, "forecast_window": "made as of 2023-09-11 for 2023-12-04",
   "disclaimer": "All sources are open or student-accessible data ...",
   "count": 3, "total": 123, "offset": 0, "limit": 3,
   "forecasts": [
@@ -132,6 +143,7 @@ With no model and no preview, `status` is `no_live_model`, `feed` is `none`, `fo
   "entity_id": "skill:python", "kind": "skill", "status": "preview", "feed": "preview", "validated": false,
   "banner": "PREVIEW: unvalidated candidate forecasts; ... Not for decisions.",
   "reason": null,
+  "data_age_days": 1139, "stale": true, "forecast_window": "made as of 2023-09-11 for 2023-12-04",
   "forecast": {"p50": -0.0019, "p10": -0.0209, "p90": 0.0227, "direction": "stable", "confidence": "low",
                "signal_quality": "noise_like", "as_of": "2023-09-11", "target_period": "2023-12-04"},
   "disclaimer": "All sources are open ..."
@@ -146,7 +158,9 @@ With no model and no preview, `status` is `no_live_model`, `feed` is `none`, `fo
 ```json
 {
   "entity_id": "skill:python", "kind": "skill", "status": "preview", "feed": "preview", "validated": false,
-  "banner": "PREVIEW: unvalidated candidate forecasts; ... Not for decisions.",
+  "banner": "PREVIEW: unvalidated candidate forecasts; the model did not pass the validation gate (failed: beats_baseline, fold_win_rate). Forecast made as of 2023-09-11 for 2023-12-04. Data is 1139 days old. Not for decisions.",
+  "data_age_days": 1139, "stale": true, "forecast_window": "made as of 2023-09-11 for 2023-12-04",
+  "shares_signal_with": null, "duplicate_group": null,
   "summary": "PREVIEW: ... Python (skill) is stable (no clear move) over the next 12 weeks (to 2023-12-04). Median change in its share of postings: -0.2%; 10-90% range -2.1% to +2.3%. Signal quality: noise-like; confidence: low. Its movement is indistinguishable from random variation, so treat the direction as unconfirmed.",
   "drivers": {"source_contributions": {"job_postings": -0.0002, "calendar_meta": -0.0018},
               "source_contributions_units": "log change over the horizon",
@@ -170,6 +184,8 @@ Trimmed response:
 ```json
 {
   "engine": "offline_alias", "feed": "preview", "validated": false, "banner": "PREVIEW: ...",
+  "forecast_as_of": "2023-09-11", "forecast_target_period": "2023-12-04", "data_age_days": 1139, "stale": true,
+  "forecast_window": "made as of 2023-09-11 for 2023-12-04",
   "disclaimer": "All sources are open ...", "horizon_months": 3,
   "status": "nothing_within_reach",
   "message": "No job reaches 50% coverage with a non-declining outlook. The closest jobs by coverage are shown, and their gaps are used instead.",
@@ -297,12 +313,38 @@ Add "unconfirmed" to the label when `confidence` is `low` or `signal_quality` is
 **Learning path.** Show `learning_path.stages` in order (`Start here`, `Next`, `Later`), with `learning_path.note`
 visible. The note says the order is a heuristic from posting counts, not a curriculum or a time estimate.
 
+**Staleness and dates.** Show `forecast_window` beside each outlook chip. Where `stale` is true, add the stale marker
+next to the chip (for example "out of date") and keep the banner. `/health` gives `forecast_age_days` and `stale` for
+the whole service, so a status badge can show the same warning. A null `stale` means there is no forecast date.
+
+**Identical series.** Some entities have exactly the same posting-share series as another entity (templated postings
+make some skills appear in the same postings). Such an entity is forecast by copying that series' forecast. Its
+record has `shares_signal_with` (the canonical id) and `duplicate_group` (every member), `confidence` is `low`, and
+`caveat` says `identical series to <id> in our data; this is one signal, not several`. Show that caveat, and do not
+present the copies as independent evidence. `shares_signal_with` is null for the canonical member and for entities
+with no duplicate.
+
 **Snapshot.** Label the section "Past share of postings" with the snapshot banner visible. Its `percent_change` is
 the change between two past blocks of periods. Never draw it as a forecast or with an arrow pointing to the future.
+
+## 6a. Staleness fields
+
+| Field | Where | Meaning |
+|---|---|---|
+| `as_of` | forecast records, listings, job fits, gaps | Data up to this date was used |
+| `target_period` | forecast records, listings, job fits, gaps | The period the forecast refers to (horizon ahead) |
+| `forecast_window` | forecast records, listings, entity, explain, report | Text: `made as of <as_of> for <target_period>` |
+| `data_age_days` | forecast records, listings, entity, explain, report, health (`forecast_age_days`) | Today (UTC) minus `as_of` |
+| `stale` | as above | `true` when `data_age_days` is more than 60 |
+| `banner` | listings, entity, explain, report | Preview text includes both dates and, when stale, `Data is N days old.`. A validated feed has no banner unless it is stale, then it says `STALE: ...` |
+| `forecast_as_of`, `forecast_target_period` | `POST /report` | Dates of the forecasts behind the outlook figures |
+| `shares_signal_with`, `duplicate_group`, `caveat` | forecast records, explain, report job fits and gaps | Identical-series flag (section 6) |
 
 ## 7. What not to do
 
 - Do not show growth, direction, or any forecast number as validated while `validated` is false.
+- Do not show an outlook without its `forecast_window`, or drop the stale marker when `stale` is true.
+- Do not count the copies of an identical series as separate signals.
 - Do not drop or hide the banner, and do not invent numbers, ranges or labels the response does not contain.
 - Do not compute your own trend from `history` or `snapshot` and present it as a forecast.
 - Do not treat `percent_change` in a snapshot as a prediction.

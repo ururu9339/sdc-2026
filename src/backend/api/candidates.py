@@ -21,6 +21,7 @@ _ERRORS = {404: {"model": ErrorEnvelope, "description": "Candidate not found."},
            503: {"model": ErrorEnvelope, "description": "OCR engine not installed."}}
 
 _ALLOWED_MIME = {"application/pdf", "image/png", "image/jpeg", "image/jpg", "image/tiff"}
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 @router.post("/form", response_model=CandidateRead, status_code=status.HTTP_201_CREATED,
@@ -31,7 +32,7 @@ def submit_form(payload: CandidateCreate, session: Session = Depends(get_session
     session.add(db_candidate)
     session.commit()
     session.refresh(db_candidate)
-    return db_candidate  # type: ignore[return-value]
+    return db_candidate
 
 
 @router.post("/pdf", response_model=OCRResult, status_code=status.HTTP_201_CREATED,
@@ -44,9 +45,11 @@ async def submit_pdf(
     if file.content_type not in _ALLOWED_MIME:
         raise ApiError(415, f"Unsupported file type: {file.content_type}")
 
-    file_bytes = await file.read()
+    file_bytes = await file.read(MAX_UPLOAD_BYTES + 1)
     if not file_bytes:
         raise ApiError(400, "File is empty.")
+    if len(file_bytes) > MAX_UPLOAD_BYTES:
+        raise ApiError(413, "File is larger than 10 MB.")
 
     try:
         if file.content_type == "application/pdf":

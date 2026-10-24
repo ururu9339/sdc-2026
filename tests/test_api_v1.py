@@ -1,5 +1,3 @@
-"""API contract: versioned paths and aliases, CORS, error body, request ids, health, pagination, sort, search,
-ETag and the preview banner. Fixtures are hand-written (conftest.py) and live in tmp_path."""
 import logging
 
 import pytest
@@ -15,7 +13,6 @@ client = TestClient(app)
 BANNER_PREFIX = "PREVIEW: unvalidated candidate forecasts"
 
 
-# ---- versioned paths and aliases -------------------------------------------------------------------
 def test_every_public_route_is_documented_under_api_v1_only():
     paths = app.openapi()["paths"]
     assert "/api/v1/forecast" in paths and "/api/v1/forecast/{entity_id}" in paths
@@ -48,7 +45,6 @@ def test_post_report_example_is_in_openapi():
     assert body.get("examples") or body.get("example")
 
 
-# ---- CORS -------------------------------------------------------------------------------------------
 def _preflight(client_, origin):
     return client_.options("/api/v1/forecast", headers={"Origin": origin,
                                                         "Access-Control-Request-Method": "GET"})
@@ -78,7 +74,6 @@ def test_cors_origins_parsing():
     assert cors_origins("https://x.test/,https://y.test") == ["https://x.test", "https://y.test"]
 
 
-# ---- error body ----------------------------------------------------------------------------------------
 def _assert_error(body, code):
     assert set(body) == {"error"}
     err = body["error"]
@@ -136,7 +131,6 @@ def test_unhandled_error_is_500_without_traceback_or_message():
     assert r.headers.get("x-request-id")
 
 
-# ---- request ids and logging -----------------------------------------------------------------------
 def test_incoming_request_id_is_honoured_and_invalid_one_is_replaced():
     r = client.get("/api/v1/health", headers={"X-Request-ID": "front-end-42"})
     assert r.headers["X-Request-ID"] == "front-end-42"
@@ -156,7 +150,6 @@ def test_request_log_line_has_id_method_path_status_and_no_query(caplog):
     assert "secret-query-value" not in line
 
 
-# ---- health ------------------------------------------------------------------------------------------
 @pytest.fixture
 def no_bundle(tmp_path, monkeypatch):
     monkeypatch.setattr(C, "SERVING_DIR", tmp_path / "no-serving")
@@ -171,7 +164,7 @@ def test_health_with_no_model_is_ok_and_explains(no_model_env, no_bundle):
     assert d["last_gate"] == {"passed": False, "reason": PREVIEW_REASON}
     assert d["gate_profile"] == "demo" and d["data_layout"] == "env" and d["bundle"] is None
     assert d["matching_engine_available"]["offline_alias"] is True
-    assert d["matching_engine_available"]["qwen_pgvector"] is False  # no DATABASE_URL in tests
+    assert d["matching_engine_available"]["qwen_pgvector"] is False
     assert set(d["sources_with_data"]) == {"job_postings", "market_signal"}
 
 
@@ -218,7 +211,6 @@ def test_health_alias_matches_v1(no_model_env, no_bundle):
     assert client.get("/health").json() == client.get("/api/v1/health").json()
 
 
-# ---- pagination, sort, search ------------------------------------------------------------------------
 def test_pagination_envelope(preview_env):
     body = client.get("/api/v1/forecast", params={"limit": 2, "offset": 0}).json()
     assert body["total"] == 3 and body["count"] == 2 and body["offset"] == 0 and body["limit"] == 2
@@ -235,7 +227,7 @@ def test_limit_above_500_is_422(preview_env):
 
 def test_default_sort_is_largest_growth_first_and_no_number_last(preview_env):
     ents = [f["entity_id"] for f in client.get("/api/v1/forecast").json()["forecasts"]]
-    assert ents == ["job:ai_engineer", "job:accountant", "job:business_analyst"]  # p50 0.25, 0.02, none
+    assert ents == ["job:ai_engineer", "job:accountant", "job:business_analyst"]
 
 
 def test_sort_growth_ascending_and_names(preview_env):
@@ -257,9 +249,9 @@ def test_search_matches_id_and_taxonomy_name_case_insensitively(preview_env):
 
 def test_min_confidence_keeps_at_or_above(live_model_env):
     body = client.get("/api/v1/forecast", params={"min_confidence": "high"}).json()
-    assert [f["entity_id"] for f in body["forecasts"]] == ["job:ai_engineer"]  # newest run only
+    assert [f["entity_id"] for f in body["forecasts"]] == ["job:ai_engineer"]
     low = client.get("/api/v1/forecast", params={"min_confidence": "low"}).json()
-    assert low["total"] == 2  # business_analyst has no confidence and is excluded
+    assert low["total"] == 2
     assert client.get("/api/v1/forecast", params={"min_confidence": "maybe"}).status_code == 422
 
 
@@ -268,7 +260,7 @@ def test_taxonomy_jobs_search_and_paging():
     assert body["kind"] == "job" and body["total"] >= 1
     assert all("analyst" in (i["name"] + " ".join(i["alt_labels"])).lower() for i in body["items"])
     all_jobs = client.get("/api/v1/taxonomy/jobs", params={"limit": 500}).json()
-    assert all_jobs["total"] == 56 and all_jobs["count"] == 56  # the taxonomy has 56 job entries
+    assert all_jobs["total"] == 56 and all_jobs["count"] == 56
     page = client.get("/api/v1/taxonomy/jobs", params={"limit": 2, "offset": 2}).json()
     assert page["count"] == 2 and page["offset"] == 2 and page["total"] == 56
     assert client.get("/api/v1/taxonomy/jobs", params={"limit": 0}).status_code == 422
@@ -279,7 +271,6 @@ def test_taxonomy_skills_is_paged_and_defaults_to_all():
     assert body["kind"] == "skill" and body["total"] == body["count"] == len(body["items"]) >= 100
 
 
-# ---- ETag and caching -----------------------------------------------------------------------------
 def test_etag_and_304_on_forecast_listing(preview_env):
     first = client.get("/api/v1/forecast")
     etag = first.headers["ETag"]
@@ -289,7 +280,7 @@ def test_etag_and_304_on_forecast_listing(preview_env):
     weak = client.get("/api/v1/forecast", headers={"If-None-Match": f"W/{etag}"})
     assert weak.status_code == 304
     other = client.get("/api/v1/forecast", params={"limit": 1}, headers={"If-None-Match": etag})
-    assert other.status_code == 200 and other.headers["ETag"] != etag  # a different query is a different body
+    assert other.status_code == 200 and other.headers["ETag"] != etag
 
 
 @pytest.mark.parametrize("path", ["/api/v1/snapshot", "/api/v1/model", "/api/v1/taxonomy/skills",
@@ -305,7 +296,6 @@ def test_report_is_never_stored(preview_env):
     assert r.status_code == 200 and r.headers["Cache-Control"] == "no-store" and "ETag" not in r.headers
 
 
-# ---- the preview banner is on every forecast-bearing response ------------------------------------------
 def test_every_forecast_bearing_response_keeps_the_preview_banner(preview_env):
     responses = [
         client.get("/api/v1/forecast").json(),
