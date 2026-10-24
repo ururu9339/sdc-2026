@@ -1,0 +1,66 @@
+{
+  "version": 3,
+  "disclaimer": "All sources are open or student-accessible data used to TRAIN and demonstrate the forecasting method. They are proxies and do not reflect the true state of the Malaysian labour market; that would need far higher-quality (licensed) data. Model quality is judged by how accurately it forecasts from the data it is given, not by how trustworthy the data is.",
+  "tiers": {
+    "1": "Measured / official data.",
+    "2": "Curated media or policy coverage. Leading but noisy.",
+    "3": "Weak proxy. Watchlist signal."
+  },
+  "sources": [
+    {
+      "source_id": "job_postings",
+      "name": "JobStreet job listings (share of postings mentioning each skill/job)",
+      "role": "target",
+      "enabled": true,
+      "tier": 2,
+      "reliability": 0.7,
+      "granularity": "monthly",
+      "ffill_limit": 0,
+      "max_staleness_months": 3,
+      "source_url": "https://huggingface.co/datasets/azrai99/job-dataset",
+      "license": "CC BY 4.0 (Creative Commons Attribution 4.0 International). The HF metadata tag says apache-2.0 but the dataset card says CC BY 4.0; we follow the card.",
+      "attribution": "azrai99/job-dataset (Hugging Face), CC BY 4.0. Listings originally from JobStreet Malaysia.",
+      "adapter": "src/sources/jobstreet.py",
+      "loader": {
+        "type": "csv"
+      }
+    },
+    {
+      "source_id": "media_mentions",
+      "name": "News / policy mention counts per topic",
+      "role": "leading",
+      "enabled": false,
+      "tier": 2,
+      "reliability": 0.5,
+      "granularity": "monthly",
+      "ffill_limit": 0,
+      "max_staleness_months": 3,
+      "source_url": "TBD - third source not chosen yet (candidates: Wikipedia pageviews per topic, Google Trends, news-archive counts)",
+      "license": "TBD",
+      "attribution": "TBD",
+      "loader": {
+        "type": "csv"
+      },
+      "scope": "entity"
+    },
+    {
+      "source_id": "gov_investment",
+      "name": "Government investment figures (MYR m) by sector",
+      "role": "leading",
+      "enabled": false,
+      "tier": 1,
+      "reliability": 0.8,
+      "granularity": "quarterly",
+      "ffill_limit": 5,
+      "max_staleness_months": 6,
+      "source_url": "TBD - candidates: DOSM quarterly online job vacancies by occupation (license unclear), DOSM annual salaries & wages by occupation/industry, DOSM monthly labour force (national)",
+      "license": "TBD",
+      "attribution": "TBD",
+      "loader": {
+        "type": "csv"
+      },
+      "scope": "mapped",
+      "release_lag_months": 0
+    }
+  ]
+}
