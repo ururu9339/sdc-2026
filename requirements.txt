@@ -1,0 +1,8 @@
+fastapi>=0.143.0
+uvicorn>=0.54.0
+sqlmodel>=0.0.48
+python-multipart>=0.0.32
+pytesseract>=0.3.13
+pdf2image>=1.17.0
+Pillow>=13.0.0
+pydantic>=2.14.0
