@@ -6,11 +6,16 @@ data by the refresh command. It is not the data, and it is not recomputed on Rep
 
 ## 1. Run command
 
+The repository's `.replit` sets everything up: Python 3.12 and Node 24, Tesseract and Poppler for CV OCR, a
+deployment build that installs `requirements.txt` and builds `frontend/` with pnpm 10, and this run command:
+
 ```bash
 uvicorn src.backend.main:app --host 0.0.0.0 --port 8000
 ```
 
-Install with `pip install -r requirements.txt`. The health check is `GET /api/v1/health` (always HTTP 200; the body
+FastAPI serves the built website from `frontend/dist` and the API under `/api/v1` on the same origin, so the site
+needs no `CORS_ORIGINS`. Port 8000 is mapped to the public port 80. The **Run** button builds the frontend on first
+use; a deployment builds it during its build step. Install with `pip install -r requirements.txt`. The health check is `GET /api/v1/health` (always HTTP 200; the body
 says `ready`, the `feed` being served, and `data.data_layout`). On Replit it should read `data_layout: "bundle"`.
 If it reads `repo` or `env`, the deployment is not using the bundle; see section 5.
 

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.backend.api import health as health_api
 from src.backend.api.candidates import router as candidates_router
@@ -12,13 +16,15 @@ from src.backend.api.forecast import router as forecast_router
 from src.backend.api.report import router as report_router
 from src.backend.db import create_db_and_tables
 from src.backend.errors import install_error_handlers
-from src.backend.middleware import REQUEST_ID_HEADER, ETagMiddleware, RequestLogMiddleware, cors_origins
+from src.backend.middleware import (REQUEST_ID_HEADER, ETagMiddleware, RequestLogMiddleware,
+                                    SecurityHeadersMiddleware, cors_origins)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 APP_VERSION = "0.2.0"
 API_PREFIX = "/api/v1"
+FRONTEND_DIST = Path(os.environ.get("FRONTEND_DIST", Path(__file__).resolve().parents[2] / "frontend" / "dist"))
 OPENAPI_TAGS = [
     {"name": "forecasts", "description": "Forecasts and explanations for jobs and skills. Preview rows are "
                                          "labelled validated=false."},
@@ -40,6 +46,18 @@ DESCRIPTION = (
 )
 
 
+class SinglePageApp(StaticFiles):
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            last = path.rsplit("/", 1)[-1]
+            if exc.status_code != 404 or path.split("/", 1)[0] == "api" or "." in last:
+                raise
+            return await super().get_response("index.html", scope)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
@@ -51,6 +69,7 @@ def create_app() -> FastAPI:
                   lifespan=lifespan)
 
     app.add_middleware(ETagMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestLogMiddleware)
     origins = cors_origins()
     app.add_middleware(
@@ -70,6 +89,8 @@ def create_app() -> FastAPI:
     app.include_router(public, prefix=API_PREFIX)
     app.include_router(public, include_in_schema=False)
     app.include_router(candidates_router)
+    if (FRONTEND_DIST / "index.html").is_file():
+        app.mount("/", SinglePageApp(directory=FRONTEND_DIST, html=True), name="frontend")
     return app
 
 

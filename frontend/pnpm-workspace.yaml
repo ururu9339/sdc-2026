@@ -1,0 +1,7 @@
+# This folder is a standalone package, independent of the parent workspace.
+packages:
+  - "."
+minimumReleaseAge: 1440
+autoInstallPeers: false
+onlyBuiltDependencies:
+  - esbuild

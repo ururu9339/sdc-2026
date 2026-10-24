@@ -68,13 +68,14 @@ Similarity only decides *which* skills and jobs are related. Growth numbers come
 
 | Layer         | Technology                                                        |
 | ------------- | ----------------------------------------------------------------- |
-| Frontend      | Built on Replit, consuming the REST API in `docs/API_FOR_FRONTEND.md` |
-| Backend       | Python, FastAPI, Uvicorn, Pydantic, SQLModel                      |
+| Frontend      | React 19, TypeScript, Vite, Tailwind CSS (`frontend/`), bilingual English / Bahasa Melayu; built on Replit and consuming the REST API in `docs/API_FOR_FRONTEND.md` |
+| Backend       | Python, FastAPI, SQLModel                                         |
 | Forecasting   | LightGBM, pandas, NumPy (weekly demand series, 12 week horizon)   |
-| AI models     | Qwen3-Embedding-4B via Ollama (skill and job matching); LightGBM (self trained demand forecaster) |
-| Database      | PostgreSQL + pgvector (taxonomy vectors, mappings, graph); SQLite (candidate records) |
+| AI models     | Qwen3-Embedding-4B via Ollama; LightGBM (demand forecasting); Tesseract OCR |
+| Database      | PostgreSQL + pgvector (taxonomy vectors, mappings, graph); SQLite (candidate API, for now) |
 | CV intake     | Tesseract OCR, pdf2image, Pillow                                  |
 | Data          | Open job posting datasets as CSV, loaded through a source registry |
+| AI / Compute  | RunPod (GPU)                                                      |
 | Hosting / Dev | Replit (API served from a committed data snapshot in `serving/`)  |
 
 ---
@@ -95,8 +96,9 @@ Similarity only decides *which* skills and jobs are related. Growth numbers come
 │   ├── versioning.py            # models/version_log.json and the quality gate
 │   ├── taxonomy/                # skills.csv, jobs.csv (MASCO unit-group codes)
 │   └── eval/                    # Frozen gold sets + evaluate.py (metrics, baselines, thresholds)
+├── frontend/                    # React website: profile form, CV upload, report, market signals
 ├── src/
-│   ├── backend/                 # FastAPI app
+│   ├── backend/                 # FastAPI app (serves the API and the built website)
 │   │   ├── main.py              # App entry point, routers, CORS, error handling
 │   │   ├── api/                 # forecast, report, health and candidate endpoints
 │   │   ├── services/            # forecast store, CV-to-report engine, OCR, catalog
@@ -146,9 +148,12 @@ Ollama has no authentication of its own. Never expose port 11434 to the internet
 
 ### Option 1 — Run on Replit
 
-1. Import this repository via **Create Repl → Import from GitHub**.
-2. In the **Secrets** tab (🔒), add the environment variables above.
-3. Set the run command to `uvicorn src.backend.main:app --host 0.0.0.0 --port 8000` and click **Run**.
+1. Import this repository via **Create Repl → Import from GitHub**. The committed `.replit` installs Python and
+   Node, Tesseract and Poppler, builds the website and starts the API.
+2. Click **Run**. The site and the API are served together on port 8000 (public port 80); the health check is
+   `/api/v1/health`.
+3. To publish, use **Deploy → Autoscale**. Optional secrets are listed above; without `DATABASE_URL` the report uses
+   the offline skill matcher and says so.
 
 ### Option 2 — Run Locally
 
@@ -163,9 +168,14 @@ pip install -r requirements.txt
 # 2. OCR system packages (for PDF/image CV upload)
 brew install tesseract poppler  # Ubuntu: apt install tesseract-ocr poppler-utils
 
-# 3. Start the API (docs at http://localhost:8000/docs)
+# 3. Build the website (Node 20.19+ and pnpm 10)
+cd frontend && pnpm install --frozen-lockfile && pnpm build && cd ..
+
+# 4. Start the site and API on http://localhost:8000 (API docs at /docs)
 python -m src.backend.main
 ```
+
+For frontend work, `pnpm dev` in `frontend/` serves the site on port 5173 and forwards `/api` to port 8000.
 
 ### Embedding pipeline
 
@@ -226,6 +236,39 @@ A new model, vector size or instruction text must score at least as well as the 
 - **Tech stack:** Python, FastAPI and SQLModel for the backend; PostgreSQL with pgvector for vector search; Ollama to serve Qwen3-Embedding-4B; Tesseract OCR for CV uploads; rapidfuzz for baselines.
 - **Agentic development:** we built with Replit and Claude Code. AI agents helped us plan, write, test and debug code quickly, while we stayed responsible for reviewing decisions and checking results against real evaluation numbers.
 - **Data quality matters as much as the model.** Most remaining errors came from gaps in our taxonomy, not from the embedding model.
+
+## Future Improvements
+
+- [ ] Retrain the forecaster on real Malaysian postings data with enough history for the validation gate
+- [ ] Grow the taxonomy from ESCO / O*NET and verify the MASCO codes against DOSM's MASCO 2020
+- [ ] Add real posting mentions to the embedding gold set, then re-record the thresholds
+- [ ] Add a small generative model for skill extraction and plain-language explanations
+- [ ] Move the candidate database from SQLite to Postgres and run the embedding version check at startup
+- [ ] Host live embedding on a protected endpoint
+
+## Team
+
+| Name        | Role                | GitHub                                   |
+| ----------- | ------------------- | ---------------------------------------- |
+| Nurali Zhan | Team Lead / Backend | [@username](https://github.com/username) |
+| Shahzod Bakiev | Frontend / Backend | [@username](https://github.com/username) |
+| Askaruly Ali | AI engine         | [@invalid-RJK](https://github.com/username) |
+| Amirkhan Dossymov | AI / RunPod   | [@username](https://github.com/username) |
+
+---
+
+## Submission Checklist
+
+- [ ] Team name, domain (Domain 1 / Domain 2) and SDG track filled in
+- [ ] Slide deck link added
+- [ ] Demo video link added
+- [ ] Replit used, with proof of use in `submission/`
+- [ ] RunPod used, with proof of use in `submission/`
+- [ ] Preliminary submission completed (`SDC2026_TeamName_Preliminary.pdf`)
+- [ ] Technology declaration completed (`SDC2026_TeamName_TechDeclaration.pdf`)
+- [ ] Submission files renamed with your team name (replace `TeamName`)
+- [ ] "How to Run" steps verified
+- [ ] No API keys or secrets committed to the repository
 
 ## License
 

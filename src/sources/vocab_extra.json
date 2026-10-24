@@ -31,9 +31,7 @@
     "pytorch"
   ],
   "skill:data_analysis": [
-    "data analy(sis|tics)",
-    "power ?bi",
-    "tableau"
+    "data analy(sis|tics)"
   ],
   "skill:data_engineering": [
     "data engineer",

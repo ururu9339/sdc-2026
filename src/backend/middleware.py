@@ -139,3 +139,31 @@ class ETagMiddleware:
             await send({"type": "http.response.body", "body": body, "more_body": False})
 
         await self.app(scope, receive, send_wrapper)
+
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "Strict-Transport-Security": "max-age=31536000",
+}
+
+
+class SecurityHeadersMiddleware:
+
+    def __init__(self, app: Callable[..., Awaitable[None]]):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                for name, value in SECURITY_HEADERS.items():
+                    headers.setdefault(name, value)
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
