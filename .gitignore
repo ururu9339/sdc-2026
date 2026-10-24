@@ -19,3 +19,5 @@ src/models/forecaster_v*/
 src/models/preview_v*/
 src/models/version_log.json
 src/models/job_sdf/
+# but keep the small hand-off files shared with the embeddings team
+!handoff/*.csv
