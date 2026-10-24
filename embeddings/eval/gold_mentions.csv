@@ -1,0 +1,306 @@
+mention,entity_type,gold_id
+Python 3.x,skill,skill:python
+python scripting,skill,skill:python
+Pyhton,skill,skill:python
+JAVA SE,skill,skill:java
+Java 17,skill,skill:java
+Javascript ES2015,skill,skill:javascript
+Vanilla JS,skill,skill:javascript
+TS,skill,skill:typescript
+TypeScipt,skill,skill:typescript
+C Sharp .NET Core,skill,skill:csharp
+ASP.NET,skill,skill:csharp
+C/C++,skill,skill:cpp
+golang microservices,skill,skill:go
+PHP/Laravel,skill,skill:php
+Laravel,skill,skill:php
+Kotlin for Android,skill,skill:kotlin
+SwiftUI,skill,skill:swift
+R programming (tidyverse),skill,skill:r
+writing complex SQL queries,skill,skill:sql
+T-SQL,skill,skill:sql
+PL/SQL,skill,skill:sql
+HTML5/CSS3,skill,skill:html_css
+Tailwind CSS,skill,skill:html_css
+Bootstrap CSS,skill,skill:html_css
+React.js,skill,skill:react
+ReactJS hooks,skill,skill:react
+Next.js,skill,skill:react
+Angular 15,skill,skill:angular
+VueJS,skill,skill:vue
+Nuxt,skill,skill:vue
+Node JS,skill,skill:nodejs
+ExpressJS,skill,skill:nodejs
+Django REST framework,skill,skill:django
+Spring MVC,skill,skill:spring
+RESTful web services,skill,skill:rest_api
+API integration,skill,skill:rest_api
+Flutter,skill,skill:mobile_dev
+React Native app development,skill,skill:mobile_dev
+pembangunan aplikasi mudah alih,skill,skill:mobile_dev
+Github,skill,skill:git
+Bitbucket,skill,skill:git
+version control (git),skill,skill:git
+Ubuntu server,skill,skill:linux
+Bash scripting,skill,skill:linux
+Docker containers,skill,skill:docker
+Dockerfile,skill,skill:docker
+K8S,skill,skill:kubernetes
+EKS/AKS,skill,skill:kubernetes
+"AWS (EC2, S3, Lambda)",skill,skill:aws
+Amazon Web Service,skill,skill:aws
+MS Azure,skill,skill:azure
+Google Cloud,skill,skill:gcp
+cloud infra,skill,skill:cloud_computing
+pengkomputeran awan,skill,skill:cloud_computing
+CI/CD pipelines,skill,skill:devops
+Jenkins,skill,skill:devops
+Terraform,skill,skill:infra_as_code
+Ansible playbooks,skill,skill:infra_as_code
+TCP/IP networking,skill,skill:networking
+Cisco CCNA,skill,skill:networking
+LAN/WAN,skill,skill:networking
+rangkaian komputer,skill,skill:networking
+information security,skill,skill:cybersecurity
+keselamatan siber,skill,skill:cybersecurity
+cyber security,skill,skill:cybersecurity
+cybersecuirty,skill,skill:cybersecurity
+ethical hacking,skill,skill:pentesting
+VAPT,skill,skill:pentesting
+SIEM (Splunk),skill,skill:soc
+incident response,skill,skill:soc
+Oracle DBA,skill,skill:database_admin
+PostgreSQL administration,skill,skill:database_admin
+MongoDB,skill,skill:nosql
+Redis cache,skill,skill:nosql
+Selenium automation testing,skill,skill:software_testing
+manual testing,skill,skill:software_testing
+QA testing,skill,skill:software_testing
+Scrum,skill,skill:agile
+Agile/Scrum,skill,skill:agile
+microservices architecture,skill,skill:system_design
+solution design,skill,skill:system_design
+helpdesk support,skill,skill:it_support
+troubleshooting PC hardware,skill,skill:it_support
+SAP FICO,skill,skill:erp
+SAP S/4HANA,skill,skill:erp
+Microsoft Dynamics 365,skill,skill:erp
+ML,skill,skill:machine_learning
+Machine Learning (ML),skill,skill:machine_learning
+machine-learning models,skill,skill:machine_learning
+scikit learn,skill,skill:machine_learning
+pembelajaran mesin,skill,skill:machine_learning
+PyTorch,skill,skill:deep_learning
+Tensorflow/Keras,skill,skill:deep_learning
+neural nets,skill,skill:deep_learning
+NLP,skill,skill:nlp
+text classification,skill,skill:nlp
+OpenCV,skill,skill:computer_vision
+image recognition,skill,skill:computer_vision
+GenAI,skill,skill:llm
+ChatGPT,skill,skill:llm
+Generative AI (LLMs),skill,skill:llm
+prompting techniques,skill,skill:prompt_engineering
+prompt eng,skill,skill:prompt_engineering
+LoRA fine-tuning,skill,skill:llm_finetuning
+fine tuning LLMs,skill,skill:llm_finetuning
+RAG pipelines,skill,skill:rag
+vector DB (Pinecone),skill,skill:rag
+LangChain,skill,skill:ai_agents
+agentic workflows,skill,skill:ai_agents
+MLflow,skill,skill:mlops
+model deployment & monitoring,skill,skill:mlops
+AI governance,skill,skill:ai_ethics
+data analytics,skill,skill:data_analysis
+analisis data,skill,skill:data_analysis
+analysing data,skill,skill:data_analysis
+statistical modelling,skill,skill:statistics
+hypothesis testing,skill,skill:statistics
+statistik,skill,skill:statistics
+dashboarding,skill,skill:data_visualization
+data visualisation,skill,skill:data_visualization
+PowerBI,skill,skill:power_bi
+MS Power BI,skill,skill:power_bi
+Tableau dashboards,skill,skill:tableau
+MS Excel,skill,skill:excel
+"Advanced Excel (VLOOKUP, Pivot)",skill,skill:excel
+spreadsheet,skill,skill:excel
+ETL pipelines,skill,skill:data_engineering
+data warehouse,skill,skill:data_engineering
+Apache Spark,skill,skill:big_data
+Hadoop,skill,skill:big_data
+Kafka streaming,skill,skill:big_data
+Pandas/Numpy,skill,skill:pandas
+time-series forecasting,skill,skill:forecasting
+perakaunan,skill,skill:accounting
+full set of accounts,skill,skill:accounting
+bookkeeping,skill,skill:accounting
+internal audit,skill,skill:auditing
+audit,skill,skill:auditing
+tax computation,skill,skill:taxation
+cukai pendapatan,skill,skill:taxation
+SST filing,skill,skill:taxation
+financial modeling,skill,skill:financial_analysis
+MFRS,skill,skill:financial_reporting
+preparing financial statements,skill,skill:financial_reporting
+payroll processing,skill,skill:payroll
+EPF/SOCSO,skill,skill:payroll
+risk assessment,skill,skill:risk_management
+AML/KYC,skill,skill:compliance
+regulatory compliance,skill,skill:compliance
+project mgmt,skill,skill:project_management
+PMP certified,skill,skill:project_management
+pengurusan projek,skill,skill:project_management
+product roadmap,skill,skill:product_management
+requirement gathering,skill,skill:business_analysis
+procurement,skill,skill:supply_chain
+logistics,skill,skill:supply_chain
+inventory control,skill,skill:supply_chain
+pemasaran digital,skill,skill:digital_marketing
+Google Ads,skill,skill:digital_marketing
+SEO/SEM,skill,skill:seo
+social media mgmt,skill,skill:social_media
+TikTok marketing,skill,skill:social_media
+B2B sales,skill,skill:sales
+jualan,skill,skill:sales
+Salesforce CRM,skill,skill:crm
+HubSpot,skill,skill:crm
+khidmat pelanggan,skill,skill:customer_service
+handling customer complaints,skill,skill:customer_service
+HR management,skill,skill:hr_management
+employee relations,skill,skill:hr_management
+talent acquisition,skill,skill:recruitment
+pengambilan pekerja,skill,skill:recruitment
+conducting training,skill,skill:training_delivery
+Photoshop,skill,skill:graphic_design
+Adobe Illustrator,skill,skill:graphic_design
+Figma,skill,skill:ux_design
+UI/UX,skill,skill:ux_design
+wireframes,skill,skill:ux_design
+Premiere Pro,skill,skill:video_editing
+copy writing,skill,skill:copywriting
+content writing,skill,skill:copywriting
+translation (Malay-English),skill,skill:translation
+good command of English,skill,skill:english
+fluent in English,skill,skill:english
+Bahasa Melayu,skill,skill:malay
+fasih berbahasa Melayu,skill,skill:malay
+Mandarin speaking,skill,skill:mandarin
+good communication skills,skill,skill:communication
+kemahiran komunikasi,skill,skill:communication
+team leadership,skill,skill:leadership
+leading a team,skill,skill:leadership
+problem-solving,skill,skill:problem_solving
+AutoCAD 2D,skill,skill:autocad
+SolidWorks,skill,skill:autocad
+PLC (Siemens/Allen Bradley),skill,skill:plc
+SCADA,skill,skill:plc
+electrical wiring,skill,skill:electrical_maintenance
+chargeman,skill,skill:electrical_maintenance
+preventive maintenance,skill,skill:mechanical_maintenance
+Six Sigma Green Belt,skill,skill:lean_manufacturing
+Kaizen,skill,skill:lean_manufacturing
+ISO 9001,skill,skill:quality_control
+QC inspection,skill,skill:quality_control
+wafer fab,skill,skill:semiconductor
+IC packaging,skill,skill:semiconductor
+site supervision,skill,skill:construction_mgmt
+HSE,skill,skill:osh
+NIOSH certified,skill,skill:osh
+GDL licence,skill,skill:driving
+lesen memandu D,skill,skill:driving
+forklift license,skill,skill:warehouse_ops
+picking & packing,skill,skill:warehouse_ops
+patient care,skill,skill:patient_care
+lesson planning,skill,skill:teaching
+cake decorating,skill,NONE
+hairdressing,skill,NONE
+welding,skill,NONE
+tailoring,skill,NONE
+piano,skill,NONE
+massage therapy,skill,NONE
+makeup artistry,skill,NONE
+quantum computing,skill,NONE
+blockchain,skill,NONE
+Solidity,skill,NONE
+veterinary care,skill,NONE
+flight operations,skill,NONE
+cooking,skill,NONE
+landscaping,skill,NONE
+jewellery design,skill,NONE
+hard working,skill,NONE
+own transport,skill,NONE
+Software Developer,job,job:software_engineer
+SWE,job,job:software_engineer
+Backend Engineer (Node.js),job,job:software_engineer
+Jurutera Perisian,job,job:software_engineer
+Full-stack dev,job,job:software_engineer
+Front End Developer,job,job:web_developer
+Web Programmer,job,job:web_developer
+Android Developer,job,job:mobile_developer
+iOS Engineer,job,job:mobile_developer
+IT Systems Analyst,job,job:systems_analyst
+Software QA Tester,job,job:qa_engineer
+SRE,job,job:devops_engineer
+Cloud Engineer,job,job:devops_engineer
+Solution Architect,job,job:solutions_architect
+DBA,job,job:dba
+Network Admin,job,job:network_engineer
+SOC Analyst L1,job,job:security_analyst
+IT Helpdesk Executive,job,job:it_support
+Senior Data Scientist,job,job:data_scientist
+Saintis Data,job,job:data_scientist
+BI Analyst,job,job:data_analyst
+Junior Data Analyst,job,job:data_analyst
+ETL Developer,job,job:data_engineer
+AI Engineer,job,job:ml_engineer
+Machine Learning Engineer,job,job:ml_engineer
+GenAI Engineer,job,job:ai_agent_developer
+LLM Application Developer,job,job:ai_agent_developer
+UI/UX Designer,job,job:ux_designer
+Pereka Grafik,job,job:graphic_designer
+Product Owner,job,job:product_manager
+Scrum Master,job,job:it_project_manager
+Accounts Executive,job,job:accountant
+Akauntan,job,job:accountant
+Audit Associate,job,job:auditor
+Tax Executive,job,job:tax_consultant
+FP&A Analyst,job,job:financial_analyst
+Account Clerk,job,job:bookkeeper
+Kerani Akaun,job,job:bookkeeper
+Compliance Officer,job,job:risk_compliance_officer
+HR Generalist,job,job:hr_executive
+Talent Acquisition Specialist,job,job:recruiter
+Digital Marketing Exec,job,job:digital_marketer
+SEO Specialist,job,job:digital_marketer
+Copywriter,job,job:content_writer
+Sales Rep,job,job:sales_executive
+Call Centre Agent,job,job:customer_service
+Admin Assistant,job,job:admin_clerk
+Procurement Executive,job,job:supply_chain_exec
+Jurutera Mekanikal,job,job:mechanical_engineer
+Manufacturing Engineer,job,job:process_engineer
+Site Engineer,job,job:civil_engineer
+Juruteknik Elektrik,job,job:technician
+HSE Officer,job,job:safety_officer
+Production Operator,job,job:production_operator
+Operator Pengeluaran,job,job:production_operator
+Storekeeper,job,job:warehouse_worker
+Despatch Rider,job,job:delivery_driver
+Lorry Driver,job,job:delivery_driver
+Cashier,job,job:retail_assistant
+Staff Nurse,job,job:nurse
+Guru Sekolah Menengah,job,job:teacher
+Barista,job,NONE
+Chef,job,NONE
+Pilot,job,NONE
+Hairdresser,job,NONE
+Veterinarian,job,NONE
+Pharmacist,job,NONE
+Lawyer,job,NONE
+Security Guard,job,NONE
+Plumber,job,NONE
+Architect (building design),job,NONE
+Real Estate Agent,job,NONE
+Chief Vibes Officer,job,NONE
+Tukang Kebun,job,NONE

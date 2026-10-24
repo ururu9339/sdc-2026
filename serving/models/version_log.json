@@ -1,0 +1,495 @@
+{
+  "live": null,
+  "preview": "preview_v18",
+  "history": [
+    {
+      "created_at": "2026-10-24T17:22:45.476282+00:00",
+      "as_of": "2023-06-12",
+      "gate_profile": "demo",
+      "gate": {
+        "passed": false,
+        "reason": "only 2 usable folds (need 3); not enough history",
+        "profile": "demo",
+        "constraints": {
+          "n_folds": 6,
+          "fold_step": 13,
+          "min_train_periods": 26,
+          "min_folds": 3,
+          "mae_margin": 0.0,
+          "min_fold_win_rate": 0.5,
+          "coverage_range": [
+            0.55,
+            0.98
+          ]
+        }
+      },
+      "folds": [
+        {
+          "fold": 0,
+          "cutoff": "2022-12-19 00:00:00",
+          "n_test": 1599,
+          "n_train": 5043,
+          "mae_model": 0.03323373557782015,
+          "mae_persistence": 0.04764112409815166,
+          "mae_trend": 0.061003883204791186,
+          "mae_damped_trend": 0.05362323750462422,
+          "mae_mean_reversion": 0.032325405920701725,
+          "mae_half_reversion": 0.036894383205110286,
+          "coverage": 0.7886178861788617,
+          "dir_acc_model": 0.7648530331457161
+        },
+        {
+          "fold": 1,
+          "cutoff": "2022-09-19 00:00:00",
+          "n_test": 1599,
+          "n_train": 3444,
+          "mae_model": 0.03941915869586806,
+          "mae_persistence": 0.05126123822118127,
+          "mae_trend": 0.06534352439091212,
+          "mae_damped_trend": 0.057645292035837785,
+          "mae_mean_reversion": 0.03834347024710206,
+          "mae_half_reversion": 0.04219959330798393,
+          "coverage": 0.7223264540337712,
+          "dir_acc_model": 0.7054409005628518
+        }
+      ],
+      "sources_used": [
+        "market_signal"
+      ],
+      "audit": [
+        {
+          "source_id": "job_postings",
+          "entities": 123,
+          "median_dispersion_ratio": 1.004492738,
+          "share_noise_like": 1.0,
+          "first_period": "2021-09-13",
+          "last_period": "2023-06-12",
+          "periods_span": 92
+        },
+        {
+          "source_id": "market_signal",
+          "entities": 9,
+          "median_dispersion_ratio": 0.6460529525,
+          "share_noise_like": 0.8888888889,
+          "first_period": "2022-01-01",
+          "last_period": "2023-05-01",
+          "periods_span": 17
+        }
+      ],
+      "version": null,
+      "status": "rejected_preview",
+      "preview_version": "preview:v14",
+      "model_dir": "preview_v14",
+      "preview_reason": "only 2 usable folds (need 3); not enough history",
+      "n_train_rows": 8118,
+      "source_importance": {
+        "calendar_meta": 0.0013264460596626238,
+        "composite": 4.638022205361123e-05,
+        "job_postings": 0.03362244593196575,
+        "market_signal": 0.0006960253584009586
+      }
+    },
+    {
+      "created_at": "2026-10-24T17:22:48.663968+00:00",
+      "as_of": "2023-07-10",
+      "gate_profile": "demo",
+      "gate": {
+        "passed": false,
+        "reason": "only 2 usable folds (need 3); not enough history",
+        "profile": "demo",
+        "constraints": {
+          "n_folds": 6,
+          "fold_step": 13,
+          "min_train_periods": 26,
+          "min_folds": 3,
+          "mae_margin": 0.0,
+          "min_fold_win_rate": 0.5,
+          "coverage_range": [
+            0.55,
+            0.98
+          ]
+        }
+      },
+      "folds": [
+        {
+          "fold": 0,
+          "cutoff": "2023-01-16 00:00:00",
+          "n_test": 1599,
+          "n_train": 5535,
+          "mae_model": 0.03407021740416667,
+          "mae_persistence": 0.04862803375725335,
+          "mae_trend": 0.062167411915907786,
+          "mae_damped_trend": 0.0547112707694384,
+          "mae_mean_reversion": 0.033089199621223385,
+          "mae_half_reversion": 0.037975343409887424,
+          "coverage": 0.7773608505315822,
+          "dir_acc_model": 0.7435897435897436
+        },
+        {
+          "fold": 1,
+          "cutoff": "2022-10-17 00:00:00",
+          "n_test": 1599,
+          "n_train": 3936,
+          "mae_model": 0.03821145027773695,
+          "mae_persistence": 0.05035970047959117,
+          "mae_trend": 0.0649090585420203,
+          "mae_damped_trend": 0.05705918653638739,
+          "mae_mean_reversion": 0.036716456125781394,
+          "mae_half_reversion": 0.04106260915223271,
+          "coverage": 0.7210756722951845,
+          "dir_acc_model": 0.7335834896810507
+        }
+      ],
+      "sources_used": [
+        "market_signal"
+      ],
+      "audit": [
+        {
+          "source_id": "job_postings",
+          "entities": 123,
+          "median_dispersion_ratio": 1.0098714351,
+          "share_noise_like": 1.0,
+          "first_period": "2021-09-13",
+          "last_period": "2023-07-10",
+          "periods_span": 96
+        },
+        {
+          "source_id": "market_signal",
+          "entities": 9,
+          "median_dispersion_ratio": 0.671018773,
+          "share_noise_like": 0.8888888889,
+          "first_period": "2022-01-01",
+          "last_period": "2023-06-01",
+          "periods_span": 18
+        }
+      ],
+      "version": null,
+      "status": "rejected_preview",
+      "preview_version": "preview:v15",
+      "model_dir": "preview_v15",
+      "preview_reason": "only 2 usable folds (need 3); not enough history",
+      "n_train_rows": 8610,
+      "source_importance": {
+        "calendar_meta": 0.001211944890912214,
+        "composite": 6.842001496227022e-05,
+        "job_postings": 0.03370795739453024,
+        "market_signal": 0.000566224075208501
+      }
+    },
+    {
+      "created_at": "2026-10-24T17:22:51.693893+00:00",
+      "as_of": "2023-08-07",
+      "gate_profile": "demo",
+      "gate": {
+        "passed": false,
+        "reason": "only 2 usable folds (need 3); not enough history",
+        "profile": "demo",
+        "constraints": {
+          "n_folds": 6,
+          "fold_step": 13,
+          "min_train_periods": 26,
+          "min_folds": 3,
+          "mae_margin": 0.0,
+          "min_fold_win_rate": 0.5,
+          "coverage_range": [
+            0.55,
+            0.98
+          ]
+        }
+      },
+      "folds": [
+        {
+          "fold": 0,
+          "cutoff": "2023-02-13 00:00:00",
+          "n_test": 1599,
+          "n_train": 6027,
+          "mae_model": 0.034222303628725394,
+          "mae_persistence": 0.04709533576452052,
+          "mae_trend": 0.060470504151363166,
+          "mae_damped_trend": 0.053142523948007774,
+          "mae_mean_reversion": 0.03265040996439781,
+          "mae_half_reversion": 0.037126327735530776,
+          "coverage": 0.7654784240150094,
+          "dir_acc_model": 0.7410881801125704
+        },
+        {
+          "fold": 1,
+          "cutoff": "2022-11-14 00:00:00",
+          "n_test": 1599,
+          "n_train": 4428,
+          "mae_model": 0.035890718200523725,
+          "mae_persistence": 0.05019227240038683,
+          "mae_trend": 0.06381440181629659,
+          "mae_damped_trend": 0.05636589267316207,
+          "mae_mean_reversion": 0.0342031483913027,
+          "mae_half_reversion": 0.039622180999808444,
+          "coverage": 0.7110694183864915,
+          "dir_acc_model": 0.7642276422764228
+        }
+      ],
+      "sources_used": [
+        "market_signal"
+      ],
+      "audit": [
+        {
+          "source_id": "job_postings",
+          "entities": 123,
+          "median_dispersion_ratio": 1.0107651636,
+          "share_noise_like": 1.0,
+          "first_period": "2021-09-13",
+          "last_period": "2023-08-07",
+          "periods_span": 100
+        },
+        {
+          "source_id": "market_signal",
+          "entities": 9,
+          "median_dispersion_ratio": 0.671245983,
+          "share_noise_like": 0.8888888889,
+          "first_period": "2022-01-01",
+          "last_period": "2023-07-01",
+          "periods_span": 19
+        }
+      ],
+      "version": null,
+      "status": "rejected_preview",
+      "preview_version": "preview:v16",
+      "model_dir": "preview_v16",
+      "preview_reason": "only 2 usable folds (need 3); not enough history",
+      "n_train_rows": 9102,
+      "source_importance": {
+        "calendar_meta": 0.0014413645095054494,
+        "composite": 7.247986244063382e-05,
+        "job_postings": 0.03349212069490994,
+        "market_signal": 0.0005376155750634331
+      }
+    },
+    {
+      "created_at": "2026-10-24T17:22:55.633875+00:00",
+      "as_of": "2023-09-04",
+      "gate_profile": "demo",
+      "gate": {
+        "profile": "demo",
+        "constraints": {
+          "n_folds": 6,
+          "fold_step": 13,
+          "min_train_periods": 26,
+          "min_folds": 3,
+          "mae_margin": 0.0,
+          "min_fold_win_rate": 0.5,
+          "coverage_range": [
+            0.55,
+            0.98
+          ]
+        },
+        "passed": false,
+        "checks": {
+          "beats_baseline": false,
+          "fold_win_rate": false,
+          "calibrated": true
+        },
+        "n_folds": 3,
+        "model_mae": 0.03643619289092119,
+        "best_baseline": "mean_reversion",
+        "best_baseline_mae": 0.0350177221439046,
+        "improvement_pct": -4.050722491849745,
+        "fold_win_rate": 0.0,
+        "coverage": 0.7565144882218053,
+        "reason": "failed: beats_baseline, fold_win_rate"
+      },
+      "folds": [
+        {
+          "fold": 0,
+          "cutoff": "2023-03-13 00:00:00",
+          "n_test": 1599,
+          "n_train": 6519,
+          "mae_model": 0.035594079139724046,
+          "mae_persistence": 0.046363257877180146,
+          "mae_trend": 0.05864275777519573,
+          "mae_damped_trend": 0.05189625857809842,
+          "mae_mean_reversion": 0.03356401996230291,
+          "mae_half_reversion": 0.03769518851170536,
+          "coverage": 0.7692307692307693,
+          "dir_acc_model": 0.716072545340838
+        },
+        {
+          "fold": 1,
+          "cutoff": "2022-12-12 00:00:00",
+          "n_test": 1599,
+          "n_train": 4920,
+          "mae_model": 0.03365930824775098,
+          "mae_persistence": 0.048604364934565415,
+          "mae_trend": 0.06199752810954931,
+          "mae_damped_trend": 0.05467290527914852,
+          "mae_mean_reversion": 0.032847782656134694,
+          "mae_half_reversion": 0.037670946846732445,
+          "coverage": 0.766729205753596,
+          "dir_acc_model": 0.766729205753596
+        },
+        {
+          "fold": 2,
+          "cutoff": "2022-09-12 00:00:00",
+          "n_test": 1599,
+          "n_train": 3321,
+          "mae_model": 0.04005519128528855,
+          "mae_persistence": 0.05153914527185969,
+          "mae_trend": 0.06551747849914606,
+          "mae_damped_trend": 0.05789256754917426,
+          "mae_mean_reversion": 0.03864136381327619,
+          "mae_half_reversion": 0.04248920481099814,
+          "coverage": 0.7335834896810507,
+          "dir_acc_model": 0.6898061288305191
+        }
+      ],
+      "sources_used": [
+        "market_signal"
+      ],
+      "audit": [
+        {
+          "source_id": "job_postings",
+          "entities": 123,
+          "median_dispersion_ratio": 1.0058096286,
+          "share_noise_like": 1.0,
+          "first_period": "2021-09-13",
+          "last_period": "2023-09-04",
+          "periods_span": 104
+        },
+        {
+          "source_id": "market_signal",
+          "entities": 9,
+          "median_dispersion_ratio": 0.641914847,
+          "share_noise_like": 0.8888888889,
+          "first_period": "2022-01-01",
+          "last_period": "2023-08-01",
+          "periods_span": 20
+        }
+      ],
+      "version": null,
+      "status": "rejected_preview",
+      "preview_version": "preview:v17",
+      "model_dir": "preview_v17",
+      "preview_reason": "failed: beats_baseline, fold_win_rate",
+      "n_train_rows": 9594,
+      "source_importance": {
+        "calendar_meta": 0.0014852978767543365,
+        "composite": 4.0468544247273265e-05,
+        "job_postings": 0.03335661035323286,
+        "market_signal": 0.0004962519782917501
+      }
+    },
+    {
+      "created_at": "2026-10-24T18:19:46.394116+00:00",
+      "as_of": "2023-09-11",
+      "gate_profile": "demo",
+      "gate": {
+        "profile": "demo",
+        "constraints": {
+          "n_folds": 6,
+          "fold_step": 13,
+          "min_train_periods": 26,
+          "min_folds": 3,
+          "mae_margin": 0.0,
+          "min_fold_win_rate": 0.5,
+          "coverage_range": [
+            0.55,
+            0.98
+          ]
+        },
+        "passed": false,
+        "checks": {
+          "beats_baseline": false,
+          "fold_win_rate": false,
+          "calibrated": true
+        },
+        "n_folds": 3,
+        "model_mae": 0.03624707928332942,
+        "best_baseline": "mean_reversion",
+        "best_baseline_mae": 0.03491729976536811,
+        "improvement_pct": -3.8083687080529005,
+        "fold_win_rate": 0.0,
+        "coverage": 0.7563060245987075,
+        "reason": "failed: beats_baseline, fold_win_rate"
+      },
+      "folds": [
+        {
+          "fold": 0,
+          "cutoff": "2023-03-20 00:00:00",
+          "n_test": 1599,
+          "n_train": 6642,
+          "mae_model": 0.03608834357630004,
+          "mae_persistence": 0.046306256366300445,
+          "mae_trend": 0.05835489689064898,
+          "mae_damped_trend": 0.0517653218755911,
+          "mae_mean_reversion": 0.03408302312830055,
+          "mae_half_reversion": 0.03789799433455134,
+          "coverage": 0.7579737335834896,
+          "dir_acc_model": 0.7217010631644778
+        },
+        {
+          "fold": 1,
+          "cutoff": "2022-12-19 00:00:00",
+          "n_test": 1599,
+          "n_train": 5043,
+          "mae_model": 0.03323373557782015,
+          "mae_persistence": 0.04764112409815166,
+          "mae_trend": 0.061003883204791186,
+          "mae_damped_trend": 0.05362323750462422,
+          "mae_mean_reversion": 0.032325405920701725,
+          "mae_half_reversion": 0.036894383205110286,
+          "coverage": 0.7886178861788617,
+          "dir_acc_model": 0.7648530331457161
+        },
+        {
+          "fold": 2,
+          "cutoff": "2022-09-19 00:00:00",
+          "n_test": 1599,
+          "n_train": 3444,
+          "mae_model": 0.03941915869586806,
+          "mae_persistence": 0.05126123822118127,
+          "mae_trend": 0.06534352439091212,
+          "mae_damped_trend": 0.057645292035837785,
+          "mae_mean_reversion": 0.03834347024710206,
+          "mae_half_reversion": 0.04219959330798393,
+          "coverage": 0.7223264540337712,
+          "dir_acc_model": 0.7054409005628518
+        }
+      ],
+      "sources_used": [
+        "market_signal"
+      ],
+      "audit": [
+        {
+          "source_id": "job_postings",
+          "entities": 123,
+          "median_dispersion_ratio": 1.0125262939,
+          "share_noise_like": 1.0,
+          "first_period": "2021-09-13",
+          "last_period": "2023-09-11",
+          "periods_span": 105
+        },
+        {
+          "source_id": "market_signal",
+          "entities": 9,
+          "median_dispersion_ratio": 0.641914847,
+          "share_noise_like": 0.8888888889,
+          "first_period": "2022-01-01",
+          "last_period": "2023-08-01",
+          "periods_span": 20
+        }
+      ],
+      "version": null,
+      "status": "rejected_preview",
+      "preview_version": "preview:v18",
+      "model_dir": "preview_v18",
+      "preview_reason": "failed: beats_baseline, fold_win_rate",
+      "n_train_rows": 9717,
+      "source_importance": {
+        "calendar_meta": 0.0014679813949342636,
+        "composite": 6.24581074033031e-05,
+        "job_postings": 0.03320803645473424,
+        "market_signal": 0.00046262758616668004
+      }
+    }
+  ],
+  "history_total": 18,
+  "history_kept": 5
+}

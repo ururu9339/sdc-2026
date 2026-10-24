@@ -1,0 +1,44 @@
+{
+  "version": 5,
+  "disclaimer": "PROOF RUN ONLY. The target series is Job-SDF (NeurIPS 2024 Datasets and Benchmarks): real job advertisements collected from Chinese online recruitment platforms, with anonymised ids (skills and occupations are numbered, not named). It is used only to demonstrate that the method finds real signal in real job-market data. It is NOT Malaysian market data and says nothing about the Malaysian labour market. Non-commercial use only (CC BY-NC-SA 4.0 per the paper).",
+  "tiers": {
+    "1": "Measured / official data.",
+    "2": "Curated listings or policy coverage. Leading but noisy.",
+    "3": "Weak proxy. Watchlist signal."
+  },
+  "time_grid": {
+    "model_periods": "monthly, month start (run with PERIOD_FREQ=M); horizon, windows and gate are counted in these periods",
+    "granularity_values": ["weekly", "monthly", "quarterly", "annual"],
+    "keys": {
+      "granularity": "native granularity of the source's periods; the period is identified by its start date",
+      "release_lag_days": "a figure for period P is only known release_lag_days after the period ends (default 0)",
+      "min_period_postings": "adapters drop periods with fewer total job ads than this",
+      "min_entity_total": "adapters keep an entity only if it has at least this many matches over the kept periods",
+      "dense": "true: every period between first and last kept period must exist and is zero-filled"
+    }
+  },
+  "sources": [
+    {
+      "source_id": "job_sdf",
+      "name": "Job-SDF job-ad skill demand (share of job ads per skill and per L1 occupation), TARGET series",
+      "role": "target",
+      "enabled": true,
+      "tier": 1,
+      "reliability": 0.9,
+      "granularity": "monthly",
+      "release_lag_days": 0,
+      "min_period_postings": 1000,
+      "min_entity_total": 1000,
+      "dense": true,
+      "source_url": "https://github.com/Job-SDF/benchmark",
+      "license": "Paper: CC BY-NC-SA 4.0 (non-commercial, share-alike); the GitHub page states no license. Used only as a method-validation dataset.",
+      "attribution": "Job-SDF: A Multi-Granularity Dataset for Job Skill Demand Forecasting and Benchmarking, NeurIPS 2024 Datasets and Benchmarks Track",
+      "adapter": "src.sources.job_sdf",
+      "raw_file": "src/data/job_sdf/dataset",
+      "loader": {
+        "type": "csv"
+      },
+      "scope": "entity"
+    }
+  ]
+}

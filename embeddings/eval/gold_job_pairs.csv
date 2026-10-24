@@ -1,0 +1,45 @@
+title_a,title_b,similar
+Data Scientist,Machine Learning Engineer,1
+Software Engineer,Backend Developer,1
+Frontend Developer,Web Developer,1
+DevOps Engineer,Site Reliability Engineer,1
+Data Analyst,BI Analyst,1
+Accountant,Auditor,1
+Bookkeeper,Accounts Clerk,1
+Recruiter,Talent Acquisition Specialist,1
+HR Executive,HR Business Partner,1
+Digital Marketing Executive,Social Media Manager,1
+Copywriter,Content Writer,1
+Sales Executive,Business Development Executive,1
+Call Centre Agent,Customer Service Representative,1
+Network Engineer,Network Administrator,1
+Security Analyst,Penetration Tester,1
+Mechanical Engineer,Maintenance Engineer,1
+Electrical Engineer,Electronics Engineer,1
+Production Operator,Machine Operator,1
+Delivery Driver,Despatch Rider,1
+Teacher,Lecturer,1
+UX Designer,Product Designer,1
+Product Manager,Product Owner,1
+Prompt Engineer,AI Application Developer,1
+Data Engineer,ETL Developer,1
+Financial Analyst,Investment Analyst,1
+Jurutera Perisian,Software Developer,1
+Data Scientist,Delivery Driver,0
+Software Engineer,Nurse,0
+Accountant,Graphic Designer,0
+Teacher,Network Engineer,0
+Recruiter,Civil Engineer,0
+Cashier,Machine Learning Engineer,0
+Copywriter,Electrical Engineer,0
+Warehouse Assistant,UX Designer,0
+Auditor,Mobile App Developer,0
+HR Executive,Semiconductor Engineer,0
+Sales Executive,Database Administrator,0
+Production Operator,Financial Analyst,0
+Nurse,DevOps Engineer,0
+Chef,Data Analyst,0
+Safety Officer,Prompt Engineer,0
+Software Engineer,Civil Engineer,0
+Network Engineer,Civil Engineer,0
+Security Analyst,Security Guard,0

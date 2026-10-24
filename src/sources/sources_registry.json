@@ -1,0 +1,97 @@
+{
+  "version": 5,
+  "disclaimer": "All sources are open or student-accessible data used to TRAIN and demonstrate the forecasting method. They are proxies and do not reflect the true state of the Malaysian labour market; that would need far higher-quality (licensed) data. Model quality is judged by how accurately it forecasts from the data it is given, not by how trustworthy the data is.",
+  "tiers": {
+    "1": "Measured / official data.",
+    "2": "Curated listings or policy coverage. Leading but noisy.",
+    "3": "Weak proxy. Watchlist signal."
+  },
+  "time_grid": {
+    "model_periods": "weekly, Monday start (config.PERIOD_FREQ = 'W'); horizon, windows and gate are counted in these periods",
+    "granularity_values": ["weekly", "monthly", "quarterly", "annual"],
+    "keys": {
+      "granularity": "native granularity of the source's periods; the period is identified by its start date",
+      "release_lag_days": "a figure for period P is only known release_lag_days after the period ends (default 0)",
+      "ffill_limit_days": "how long a published figure is carried forward on the weekly grid (default: the granularity span, 7 / 31 / 92 / 366 days)",
+      "max_staleness_days": "older than this (measured from the period end plus release lag) the agent loop drops the source until it refreshes",
+      "min_period_postings": "adapters drop periods with fewer total postings than this",
+      "min_entity_total": "adapters keep an entity only if it has at least this many matches over the kept periods",
+      "dense": "true: every period between first and last kept period must exist and is zero-filled; false: gaps stay gaps"
+    }
+  },
+  "sources": [
+    {
+      "source_id": "job_postings",
+      "name": "Job descriptions dataset (share of postings per skill and job family), TARGET series",
+      "role": "target",
+      "enabled": true,
+      "tier": 2,
+      "reliability": 0.55,
+      "granularity": "weekly",
+      "release_lag_days": 0,
+      "min_period_postings": 2000,
+      "min_entity_total": 500,
+      "dense": true,
+      "source_url": "provided by team (Kaggle-style Job Description dataset)",
+      "license": "UNVERIFIED - appears synthetic; demo/training use only",
+      "attribution": "Team-provided job descriptions file (Kaggle-style). Provenance not verified.",
+      "adapter": "src.sources.job_descriptions",
+      "raw_file": "src/data/job_descriptions.csv",
+      "loader": {
+        "type": "csv"
+      },
+      "scope": "entity"
+    },
+    {
+      "source_id": "jobstreet_my",
+      "name": "JobStreet Malaysia listings (share of postings per skill and job family)",
+      "role": "leading",
+      "enabled": true,
+      "tier": 1,
+      "reliability": 0.8,
+      "granularity": "weekly",
+      "release_lag_days": 0,
+      "max_staleness_days": 730,
+      "min_period_postings": 200,
+      "min_entity_total": 30,
+      "dense": false,
+      "source_url": "https://huggingface.co/datasets/azrai99/job-dataset",
+      "license": "CC BY 4.0 per Hugging Face dataset card for azrai99/job-dataset (this file appears to be an updated copy; confirm)",
+      "attribution": "azrai99/job-dataset (Hugging Face), CC BY 4.0. Listings originally from JobStreet Malaysia.",
+      "adapter": "src.sources.jobstreet",
+      "raw_file": "src/data/jobstreet_all_job_dataset.csv",
+      "loader": {
+        "type": "csv"
+      },
+      "scope": "entity"
+    },
+    {
+      "source_id": "market_signal",
+      "name": "Job market survey (share of rows per occupation family)",
+      "role": "leading",
+      "enabled": true,
+      "tier": 3,
+      "reliability": 0.25,
+      "granularity": "monthly",
+      "release_lag_days": 0,
+      "max_staleness_days": 730,
+      "min_period_postings": 1000,
+      "min_entity_total": 500,
+      "dense": true,
+      "source_url": "provided by team (job market dataset)",
+      "license": "UNVERIFIED - appears synthetic; demo/training use only",
+      "attribution": "Team-provided job market file. Provenance not verified.",
+      "adapter": "src.sources.job_market",
+      "raw_file": "src/data/job_market_dataset.csv",
+      "loader": {
+        "type": "csv"
+      },
+      "scope": "entity"
+    }
+  ],
+  "gate_profiles": {
+    "_note": "Constraints in periods (config.GATE_PROFILES). The gate rule is the same under both profiles: the candidate must beat the best naive baseline. Only the numeric constraints differ. Active profile: env GATE_PROFILE, default 'demo'.",
+    "production": "n_folds 6, fold_step 13, min_train_periods 52, min_folds 3, mae_margin 0.03, min_fold_win_rate 0.6, coverage_range [0.65, 0.95]",
+    "demo": "n_folds 6, fold_step 13, min_train_periods 26, min_folds 3, mae_margin 0.0, min_fold_win_rate 0.5, coverage_range [0.55, 0.98]"
+  }
+}

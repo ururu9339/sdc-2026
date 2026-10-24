@@ -1,8 +1,17 @@
 fastapi>=0.143.0
 uvicorn>=0.54.0
+httpx>=0.28.0
 sqlmodel>=0.0.48
 python-multipart>=0.0.32
 pytesseract>=0.3.13
 pdf2image>=1.17.0
 Pillow>=13.0.0
 pydantic>=2.14.0
+lightgbm>=4.5.0
+pandas>=2.2.0
+numpy>=2.0
+pytest>=8.0.0
+pyarrow>=17.0.0
+requests>=2.32
+psycopg[binary]>=3.2
+rapidfuzz>=3.9

@@ -1,0 +1,48 @@
+[
+  {
+    "component": "embeddings",
+    "status": "active",
+    "recorded_at": "2026-10-24T12:25:42+00:00",
+    "version_tag": "qwen3-embedding:4b|dim=1024|task=5eb312ed",
+    "model": "qwen3-embedding:4b",
+    "dim": 1024,
+    "task": "Given a skill or job phrase from a job posting or CV, retrieve the matching standardized skill or occupation",
+    "model_digest": "df5bd2e3c74cd8d069d21dc038f1b359fcdc9458fce1c99bd43c9eb1518ff907",
+    "gold_sha": "01d26b9dbdb6",
+    "metrics": {
+      "top1": 0.9673,
+      "top5": 1.0,
+      "mrr": 0.9824,
+      "top1_unseen": 0.9494,
+      "top1_skill": 0.9673,
+      "top1_job": 0.9672,
+      "pair_auc": 0.9872
+    },
+    "thresholds": {
+      "high": 0.5,
+      "low": 0.5,
+      "cold_start_min": 0.48
+    },
+    "baselines": {
+      "exact": {
+        "top1": 0.1309,
+        "mrr": 0.1309
+      },
+      "lowercase": {
+        "top1": 0.4255,
+        "mrr": 0.4255
+      },
+      "rapidfuzz": {
+        "top1": 0.8873,
+        "mrr": 0.9203
+      }
+    },
+    "compared": {
+      "qwen3-embedding:0.6b": {
+        "top1": 0.9309,
+        "mrr": 0.9618,
+        "pair_auc": 0.9338
+      }
+    }
+  }
+]
