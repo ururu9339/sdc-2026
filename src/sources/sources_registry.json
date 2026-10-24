@@ -8,7 +8,12 @@
   },
   "time_grid": {
     "model_periods": "weekly, Monday start (config.PERIOD_FREQ = 'W'); horizon, windows and gate are counted in these periods",
-    "granularity_values": ["weekly", "monthly", "quarterly", "annual"],
+    "granularity_values": [
+      "weekly",
+      "monthly",
+      "quarterly",
+      "annual"
+    ],
     "keys": {
       "granularity": "native granularity of the source's periods; the period is identified by its start date",
       "release_lag_days": "a figure for period P is only known release_lag_days after the period ends (default 0)",
@@ -33,8 +38,8 @@
       "min_entity_total": 500,
       "dense": true,
       "source_url": "provided by team (Kaggle-style Job Description dataset)",
-      "license": "UNVERIFIED - appears synthetic; demo/training use only",
-      "attribution": "Team-provided job descriptions file (Kaggle-style). Provenance not verified.",
+      "license": "CC BY 4.0 (confirmed by the team)",
+      "attribution": "Provided by the team under CC BY 4.0; original title and author to be added.",
       "adapter": "src.sources.job_descriptions",
       "raw_file": "src/data/job_descriptions.csv",
       "loader": {
@@ -79,8 +84,8 @@
       "min_entity_total": 500,
       "dense": true,
       "source_url": "provided by team (job market dataset)",
-      "license": "UNVERIFIED - appears synthetic; demo/training use only",
-      "attribution": "Team-provided job market file. Provenance not verified.",
+      "license": "CC BY 4.0 (confirmed by the team)",
+      "attribution": "Provided by the team under CC BY 4.0; original title and author to be added.",
       "adapter": "src.sources.job_market",
       "raw_file": "src/data/job_market_dataset.csv",
       "loader": {
