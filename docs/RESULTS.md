@@ -4,7 +4,7 @@ Prediction module of Currvix: data ingestion, a LightGBM demand forecaster, a va
 
 ## 1. Summary
 
-- The pipeline runs end to end: three CSV sources, causal features, one global LightGBM model with 10, 50 and 90 percent outputs, a fixed walk forward gate, abstention rules, tamper evident logs and a versioned API. 268 automated tests pass.
+- The pipeline runs end to end: three CSV sources, causal features, one global LightGBM model with 10, 50 and 90 percent outputs, a fixed walk forward gate, abstention rules, tamper evident logs and a versioned API. 277 automated tests pass.
 - No model is validated. The gate rejects the forecaster on every dataset we have, so forecasts are served as an unvalidated preview with a banner, the as of date and the reason.
 - On the Malaysian data the cause is the data: the series vary no more than random sampling would, and the one clearly real source (JobStreet) does not overlap the target period.
 - On a real public benchmark with genuine trends (Job-SDF) the model is close to the baselines but still 3.9 percent worse than a damped trend under the strict gate.

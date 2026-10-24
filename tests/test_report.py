@@ -83,6 +83,35 @@ def test_caveats_always_carry_the_disclaimer_and_preview_warning(preview_env):
     assert any("alias matcher" in c for c in r["caveats"])
 
 
+
+def _preview_job_record(p50: float, entity: str = "job:accountant"):
+    return _record(model_version="preview:v1", feed="preview", validated=False, preview_reason=PREVIEW_REASON,
+                   gate_profile="demo", forecast_id=f"preview:v1:{entity}:2026-09-21", as_of="2026-09-21",
+                   entity_id=entity, kind="job", status="ok", reason=None, p50=p50, p10=p50 - 0.05,
+                   p90=p50 + 0.05, direction="declining" if p50 < -0.10 else "stable", confidence="low",
+                   signal_quality="noise_like", dispersion_ratio=1.0, source_contributions={"job_postings": 0.0})
+
+
+def test_small_dip_labelled_stable_keeps_the_job_in_reach(preview_env):
+    AppendOnlyLog(preview_env["preview_path"]).append_many([_preview_job_record(math.log(0.92))])
+    r = service.build_report(["skill:accounting", "skill:excel"])
+    assert r["status"] == "ok" and r["targets"] == ["job:accountant"]
+    assert r["best_fit_jobs"][0]["growth"] == pytest.approx(-0.08)
+
+
+def test_job_the_forecaster_calls_declining_is_not_in_reach(preview_env):
+    AppendOnlyLog(preview_env["preview_path"]).append_many([_preview_job_record(-0.2)])
+    r = service.build_report(["skill:accounting", "skill:excel"])
+    assert r["status"] == "nothing_within_reach"
+    assert r["best_fit_jobs"][0]["job_id"] == "job:accountant"
+
+
+def test_declining_rule_matches_the_forecaster_threshold():
+    t = service.C.DIRECTION_THRESHOLD
+    assert service._declining(math.exp(-t - 0.001) - 1) and not service._declining(math.exp(-t + 0.001) - 1)
+    assert not service._declining(None)
+
+
 def test_nothing_within_reach_shows_closest_jobs_and_their_gaps(preview_env):
     r = service.build_report(["skill:accounting"])
     assert r["status"] == "nothing_within_reach"
@@ -163,6 +192,31 @@ def test_unresolved_inputs_and_free_text_blob(preview_env):
     assert "skill:r" not in by_id
 
 
+
+def test_goal_statements_in_free_text_are_not_counted_as_skills(preview_env):
+    r = service.build_report([], text="Accounts executive doing accounting in Excel, "
+                                      "looking to move into Python and data analytics. Built Node.js tools.")
+    ids = {x["skill_id"] for x in r["resolved_skills"] if x["skill_id"]}
+    assert {"skill:accounting", "skill:excel", "skill:nodejs"} <= ids
+    assert not ids & {"skill:python", "skill:data_analysis"}
+    assert any("reads as a goal" in w and "looking to move into Python" in w for w in r["warnings"])
+
+
+def test_a_skill_held_and_also_named_as_a_goal_is_kept_without_a_warning(preview_env):
+    r = service.build_report([], text="Used Excel daily. Keen to get better at Excel.")
+    assert "skill:excel" in {x["skill_id"] for x in r["resolved_skills"]}
+    assert not any("reads as a goal" in w for w in r["warnings"])
+
+
+@pytest.mark.parametrize("text, kept, goals", [
+    ("Interested in Node.js and AI. Built REST APIs.", " Built REST APIs.", ["Interested in Node.js and AI"]),
+    ("Saya berminat dengan pembelajaran mesin; mahir Excel", "; mahir Excel", ["berminat dengan pembelajaran mesin"]),
+    ("Built dashboards in Power BI", "Built dashboards in Power BI", []),
+    ("Machine learning engineer, 3 years", "Machine learning engineer, 3 years", []),
+])
+def test_split_goals(text, kept, goals):
+    assert service._split_goals(text) == (text.replace(goals[0], "") if goals else kept, goals)
+
 def test_free_text_list_item_resolves_by_alias(preview_env):
     r = service.build_report(["Accounting", "python3"])
     ids = {x["input"]: x["skill_id"] for x in r["resolved_skills"]}
@@ -235,5 +289,6 @@ def test_constants_match_the_embeddings_team_source():
     graph_src = (ROOT / "embeddings" / "graph.py").read_text(encoding="utf-8")
     assert service.PROFILE_SIZE == _const(match_src, "PROFILE_SIZE")
     assert service.REACH == _const(match_src, "REACH")
+    assert service.C.DIRECTION_THRESHOLD == _const(match_src, "DECLINE_LOG")
     assert service.TOP_TARGETS == _const(match_src, "TOP_TARGETS")
     assert service.MIN_POSTINGS == _const(graph_src, "MIN_POSTINGS")

@@ -211,22 +211,6 @@ def current_records() -> tuple[str, list[dict]]:
     return feed, []
 
 
-def select_forecasts(kind: str | None = None, direction: str | None = None, status: str | None = None,
-                     limit: int = 100) -> list[dict]:
-    feed, recs = current_records()
-    out = []
-    for r in recs:
-        if kind and r.get("kind") != kind:
-            continue
-        if direction and r.get("direction") != direction:
-            continue
-        if status and r.get("status") != status:
-            continue
-        out.append(r)
-    out.sort(key=lambda r: (r.get("status") != "ok", r["entity_id"]))
-    return [api_record(r, feed) for r in out[:limit]]
-
-
 CONFIDENCE_RANK = {"low": 0, "moderate": 1, "high": 2}
 SORTS = ("growth", "-growth", "name", "-name")
 DEFAULT_SORT = "-growth"

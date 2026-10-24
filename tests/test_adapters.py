@@ -35,7 +35,7 @@ def test_jd_weekly_shares_graph_and_meta(tmp_path, jd_csv):
              chunk_rows=2)
 
     obs = pd.read_csv(out, parse_dates=["period"]).set_index(["entity_id", "period"])
-    wk = lambda d: pd.Timestamp(d)  # noqa: E731
+    wk = lambda d: pd.Timestamp(d)
     assert obs.loc[("skill:python", wk("2024-01-01")), "value"] == 1.0
     assert obs.loc[("skill:python", wk("2024-01-08")), "value"] == 0.5
     assert obs.loc[("skill:python", wk("2024-01-29")), "value"] == 0.5

@@ -198,7 +198,7 @@ def _gate_summary(folds: pd.DataFrame, gate: dict) -> dict:
     if "model_mae" not in gate or folds.empty:
         return out
     w = folds["n_test"].astype(float)
-    wmean = lambda c: float(np.average(folds[c], weights=w))  # noqa: E731
+    wmean = lambda c: float(np.average(folds[c], weights=w))
     base_cols = [c for c in folds.columns if c.startswith("mae_") and c != "mae_model"]
     best = gate["best_baseline"]
     out.update({

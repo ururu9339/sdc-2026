@@ -8,7 +8,7 @@ def test_no_live_model_state(no_model_env):
     assert store.live_version() is None
     assert store.latest_forecasts() == []
     assert store.forecast_for("job:accountant") is None
-    assert store.select_forecasts() == []
+    assert store.query_forecasts()[2] == []
     assert store.no_live_reason() == "failed: beats_baseline, fold_win_rate"
     info = store.model_info()
     assert info["live"] is None and info["live_version"] is None and info["attempts"] == 1
@@ -36,10 +36,10 @@ def test_live_state_latest_run_only(live_model_env):
 
 
 def test_live_state_filters(live_model_env):
-    assert [r["entity_id"] for r in store.select_forecasts(direction="emerging")] == ["job:ai_engineer"]
-    assert [r["entity_id"] for r in store.select_forecasts(status="insufficient_data")] == ["job:business_analyst"]
-    assert store.select_forecasts(kind="skill") == []
-    assert len(store.select_forecasts(limit=1)) == 1
+    assert [r["entity_id"] for r in store.query_forecasts(direction="emerging")[2]] == ["job:ai_engineer"]
+    assert [r["entity_id"] for r in store.query_forecasts(status="insufficient_data")[2]] == ["job:business_analyst"]
+    assert store.query_forecasts(kind="skill")[2] == []
+    assert len(store.query_forecasts(limit=1)[2]) == 1
     assert store.forecast_envelope()["model_version"] == "v1"
 
 

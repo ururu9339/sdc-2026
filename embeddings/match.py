@@ -1,4 +1,5 @@
 import argparse
+import math
 
 from embeddings import db
 from embeddings.graph import job_skill_profile
@@ -6,8 +7,13 @@ from embeddings.normalize import normalize
 
 HORIZON = 12
 REACH = 0.5
+DECLINE_LOG = 0.10
 PROFILE_SIZE = 15
 TOP_TARGETS = 3
+
+
+def declining(growth):
+    return growth is not None and math.log1p(growth) < -DECLINE_LOG
 
 
 def resolve_skills(conn, items):
@@ -57,9 +63,8 @@ def match_user(conn, skills, horizon=HORIZON):
 
     results.sort(key=lambda r: (-r["coverage"], -(r["job_growth"] or 0)))
 
-    within_reach = [r for r in results if r["coverage"] >= REACH and (r["job_growth"] is None or r["job_growth"] > 0)]
+    within_reach = [r for r in results if r["coverage"] >= REACH and not declining(r["job_growth"])]
     targets = (within_reach or results)[:TOP_TARGETS]
-
 
     gaps = {}
     for r in targets:
@@ -69,9 +74,11 @@ def match_user(conn, skills, horizon=HORIZON):
             g = gaps.setdefault(d["skill_id"], {
                 "skill_id": d["skill_id"], "name": d["name"], "score": 0.0, "skill_growth": growth,
                 "forecast": "ok" if growth is not None else "no_forecast", "for_jobs": [], "evidence": d["evidence"]})
-            g["score"] = max(g["score"], round(score, 4))
+            g["score"] += score
             g["for_jobs"].append(r["job_id"])
-    ranked_gaps = sorted(gaps.values(), key=lambda g: (-len(g["for_jobs"]), -g["score"]))
+    for g in gaps.values():
+        g["score"] = round(g["score"], 4)
+    ranked_gaps = sorted(gaps.values(), key=lambda g: -g["score"])
 
     for r in results:
         r["missing"] = [d["skill_id"] for d in r["missing"]]
