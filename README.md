@@ -39,7 +39,7 @@ Workers, students and career counsellors in Malaysia have little forward-looking
 Currvix turns raw job postings into a forecast of skill and job demand, then uses it to recommend reskilling paths:
 
 1. **Normalize.** An embedding model (Qwen3-Embedding-4B) maps every skill or job mention in a posting or CV to a stable ID in a curated taxonomy aligned with MASCO, Malaysia's occupation classification.
-2. **Count.** The mapped mentions become monthly demand series per skill and job.
+2. **Count.** The mapped mentions become weekly demand series per skill and job.
 3. **Forecast.** A LightGBM model forecasts each series' growth.
 4. **Explain and match.** A job↔skill graph built from posting co-occurrence shows what each job needs. Matching compares a user's skills against it to find jobs within reach and the missing skills that are growing fastest.
 
@@ -205,13 +205,9 @@ A new model, vector size or instruction text must score at least as well as the 
 
 ## How We Use Replit *(Required)*
 
-Describe how your team used Replit. For example:
-
-- **Development:** Collaborative coding in a shared Repl using Multiplayer.
-- **Hosting:** The app is deployed with Replit Deployments at the Live Demo link above.
-- **Secrets:** API keys are stored in Replit Secrets, never in the code.
-
-📄 Proof of use: [`submission/SDC2026_TeamName_Replit_POU.pdf`](submission/SDC2026_TeamName_Replit_POU.pdf)
+- **Frontend:** built on Replit. It calls the REST API described in `docs/API_FOR_FRONTEND.md`.
+- **Backend hosting:** the FastAPI backend runs on Replit with `uvicorn src.backend.main:app --host 0.0.0.0 --port 8000`. It serves a committed snapshot of the forecasts (`serving/`), so no model training runs on the server. See `docs/DEPLOY_REPLIT.md`.
+- **Secrets:** `CORS_ORIGINS` and, when the Qwen matcher is connected, `DATABASE_URL`, `OLLAMA_URL` and `OLLAMA_API_KEY` are stored in Replit Secrets, never in the code.
 
 ---
 
@@ -220,7 +216,7 @@ Describe how your team used Replit. For example:
 ### Challenges
 
 - **Building from scratch across many sources.** Job postings come from several sites, each with its own format, and skills are written inconsistently ("Python", "python3", "pengaturcaraan python") in both English and Malay. We had to design our own taxonomy of stable skill and job IDs, aligned with MASCO. We then built an embedding pipeline that maps every mention to one of those IDs, so demand isn't split across spellings.
-- **No recent, date-ranged datasets.** We couldn't find public Malaysian job-posting data covering the recent months we needed for forecasting. We worked with synthetic postings to build and test the pipeline end to end, and designed it so real postings can be loaded later without code changes.
+- **No recent, date-ranged datasets.** We couldn't find open Malaysian job-posting data that is both recent and continuous. Our main series ends in September 2023, and the JobStreet listings (2024 to 2025) do not overlap it, so forecasts are served as a dated, unvalidated preview. We built and tested the pipeline on these files and on a labelled simulation, and designed it so newer data can be loaded without code changes.
 - **Choosing thresholds without guessing.** The default similarity thresholds rejected almost every correct match. We hand-built a gold set of 305 mentions, including negatives with no correct ID, and picked the thresholds from measured precision.
 - **Knowing when to abstain.** Unknown job titles always have *some* nearest neighbour. We added cut-offs taken from the evaluation, so the system answers "insufficient data" instead of inventing a profile.
 
